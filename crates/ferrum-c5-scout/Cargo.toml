@@ -1,0 +1,7 @@
+[package]
+name = "ferrum-c5-scout"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ferrum-proto = { path = "../ferrum-proto" }

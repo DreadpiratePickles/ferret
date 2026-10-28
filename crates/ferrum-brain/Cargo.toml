@@ -1,0 +1,15 @@
+[package]
+name = "ferrum-brain"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ferrum-proto = { path = "../ferrum-proto" }
+ferrum-wroom-nrf = { path = "../ferrum-wroom-nrf" }
+ferrum-c5-scout = { path = "../ferrum-c5-scout" }
+ferrum-s3-sense = { path = "../ferrum-s3-sense" }
+ferrum-secure = { path = "../ferrum-secure" }
+ferrum-ids = { path = "../ferrum-ids" }
+ferrum-deceive = { path = "../ferrum-deceive" }
+ferrum-forensics = { path = "../ferrum-forensics" }
+ferrum-triage = { path = "../ferrum-triage" }

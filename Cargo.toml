@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/ferrum-proto",
+    "crates/ferrum-wroom-nrf",
+    "crates/ferrum-c5-scout",
+    "crates/ferrum-s3-sense",
+    "crates/ferrum-brain",
+    "crates/ferrum-secure",
+    "crates/ferrum-ids",
+    "crates/ferrum-deceive",
+    "crates/ferrum-forensics",
+    "crates/ferrum-triage",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Ferrum CyberSwarm"]

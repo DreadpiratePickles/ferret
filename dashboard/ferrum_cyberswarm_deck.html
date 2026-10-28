@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ferrum CyberSwarm — Tactical Control Deck</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    :root {
+      --background: #090d16;
+      --foreground: #f1f5f9;
+      --card: #111827;
+      --border: #1e293b;
+      --primary: #10b981;
+      --primary-foreground: #052e16;
+      --secondary: #1e293b;
+      --secondary-foreground: #e2e8f0;
+      --muted-foreground: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-[var(--background)] text-[var(--foreground)] antialiased p-4 md:p-6 select-none">
+  <div class="max-w-7xl mx-auto space-y-4">
+
+    <!-- Header Bar -->
+    <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-bold tracking-tight">FERRUM CYBERSWARM // TACTICAL DECK</h1>
+            <span class="text-xs font-mono px-2 py-0.5 rounded bg-[var(--secondary)] text-[var(--secondary-foreground)] border border-[var(--border)]">
+              Pi 5 (8GB) + uConsole AIOv2
+            </span>
+          </div>
+          <p class="text-xs text-[var(--muted-foreground)]">
+            AI-Adaptive Rust Unikernel Control Plane • 3-Node ESP-NOW Mesh • Laya System-1 Decision Loop
+          </p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-mono text-[var(--muted-foreground)] mr-1">INJECT SCENARIO:</span>
+        <button onclick="setScenario('nominal')" id="btn-nominal" class="scenario-btn text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--primary)] text-[var(--primary-foreground)] font-semibold transition">
+          1. Nominal Sweep
+        </button>
+        <button onclick="setScenario('ghost_esb')" id="btn-ghost_esb" class="scenario-btn text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition">
+          2. Ghost-Band (2498MHz) + MouseJack
+        </button>
+        <button onclick="setScenario('wifi5_deauth')" id="btn-wifi5_deauth" class="scenario-btn text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition">
+          3. 5GHz Evil Twin (Ch 149)
+        </button>
+        <button onclick="setScenario('layer1_jam')" id="btn-layer1_jam" class="scenario-btn text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition">
+          4. 2.4GHz Layer-1 RF Jammer
+        </button>
+        <button onclick="setScenario('proximity_fusion')" id="btn-proximity_fusion" class="scenario-btn text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition">
+          5. Intruder (-34dBm) + 433MHz + BLE Rotate
+        </button>
+      </div>
+    </div>
+
+    <!-- Top Grid: Laya System-1 Decision Engine + 3-Node Spatial Triangulation Radar -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+      <!-- Left 7 cols: Laya System-1 Decision Engine + Dual nRF24 126-MHz Waterfall -->
+      <div class="lg:col-span-7 space-y-4">
+
+        <!-- Laya System-1 Decision Card -->
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-[var(--muted-foreground)]">Pi 5 Control Plane • Laya System-1 Engine</span>
+              <h2 class="text-base font-semibold">One-Pass Typed Policy Decision</h2>
+            </div>
+            <div class="text-right font-mono">
+              <div id="laya-latency" class="text-sm font-bold text-emerald-500">19.2 ms</div>
+              <div class="text-xs text-[var(--muted-foreground)]">1 forward pass • 0 tokens</div>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-lg bg-[var(--background)] border border-[var(--border)] flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div class="text-xs text-[var(--muted-foreground)]">ACTIVE SWARM POLICY</div>
+              <div id="active-policy-badge" class="text-base font-mono font-bold text-emerald-500">WIDE_RECON (0x01)</div>
+            </div>
+            <div>
+              <div class="text-xs text-[var(--muted-foreground)]">WROOM DUAL-nRF24 MODE</div>
+              <div id="active-nrf-badge" class="text-sm font-mono font-semibold">SPLIT_SPECTRUM_WATERFALL</div>
+            </div>
+            <div>
+              <div class="text-xs text-[var(--muted-foreground)]">ESP-NOW FRAME</div>
+              <div class="text-xs font-mono">13B Cmd / CRC8 OK</div>
+            </div>
+          </div>
+
+          <p id="laya-rationale" class="text-xs font-mono text-[var(--muted-foreground)] leading-relaxed">
+            RF spectrum nominal -> WROOM Dual-nRF sweeping 126MHz waterfall, C5 sweeping 5GHz+Zigbee, S3 in 80MHz low-power ring buffer.
+          </p>
+
+          <!-- Probability distribution bars -->
+          <div id="laya-bars" class="space-y-1.5 pt-1"></div>
+        </div>
+
+        <!-- WROOM Dual-nRF24L01+ 126-Channel (2400 - 2525 MHz) Spectrum & Ghost Band -->
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-[var(--muted-foreground)]">Node 1: ESP32-WROOM • Core 1 SPI Loop</span>
+              <h2 class="text-base font-semibold">Dual nRF24L01+ 126-Ch RPD Carrier Spectrum (2400–2525 MHz)</h2>
+            </div>
+            <div class="flex items-center gap-3 text-xs font-mono">
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-sky-500 inline-block"></span> nRF#1 VSPI (2400-2462)</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block"></span> nRF#2 HSPI (2463-2483)</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block"></span> Ghost Band (2484-2525MHz)</span>
+            </div>
+          </div>
+
+          <canvas id="nrfSpectrumCanvas" width="680" height="125" class="w-full h-32 rounded-lg bg-[var(--background)] border border-[var(--border)]"></canvas>
+
+          <div class="flex flex-wrap justify-between text-xs font-mono text-[var(--muted-foreground)]">
+            <span>2400 MHz (Ch 0 • BLE 37)</span>
+            <span>2426 MHz (Ch 26 • BLE 38)</span>
+            <span>2462 MHz (Wi-Fi Ch 11)</span>
+            <span>2480 MHz (BLE 39)</span>
+            <span class="text-rose-500 font-semibold">2485–2525 MHz (Ghost Band Ch 85–125)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right 5 cols: Interactive 3-Node Spatial RSSI Trilateration Radar -->
+      <div class="lg:col-span-5 bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 flex flex-col justify-between space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-xs font-mono uppercase tracking-wider text-[var(--muted-foreground)]">3-Anchor RSSI Trilateration • Click/Drag Target</span>
+            <h2 class="text-base font-semibold">Physical Perimeter Spatial Radar (6.0m × 5.2m)</h2>
+          </div>
+          <span id="radar-lock-badge" class="text-xs font-mono px-2 py-0.5 rounded border border-[var(--border)] bg-[var(--secondary)]">
+            PASSIVE TRACK
+          </span>
+        </div>
+
+        <div class="relative">
+          <canvas id="radarCanvas" width="460" height="330" class="w-full rounded-lg bg-[var(--background)] border border-[var(--border)] cursor-crosshair"></canvas>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 text-center font-mono text-xs">
+          <div class="p-2 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+            <div class="text-[var(--muted-foreground)]">Anchor A: WROOM</div>
+            <div id="rssi-wroom" class="text-sm font-bold text-sky-500">-58 dBm</div>
+            <div id="dist-wroom" class="text-xs text-[var(--muted-foreground)]">2.6 m</div>
+          </div>
+          <div class="p-2 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+            <div class="text-[var(--muted-foreground)]">Anchor B: ESP32-C5</div>
+            <div id="rssi-c5" class="text-sm font-bold text-amber-500">-61 dBm</div>
+            <div id="dist-c5" class="text-xs text-[var(--muted-foreground)]">3.0 m</div>
+          </div>
+          <div class="p-2 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+            <div class="text-[var(--muted-foreground)]">Anchor C: S3 Sense</div>
+            <div id="rssi-s3" class="text-sm font-bold text-emerald-500">-55 dBm</div>
+            <div id="dist-s3" class="text-xs text-[var(--muted-foreground)]">2.2 m</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Grid: The 3 Hardware Nodes + BLE De-Anonymizer & Hermit Unikernel Sandbox -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+      <!-- Node 1: ESP32-WROOM + Dual nRF24 -->
+      <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-xs font-mono text-sky-500 font-semibold">NODE 0x01 • XTensa LX6</span>
+            <h3 class="text-sm font-bold">ESP32-WROOM + 2× nRF24L01+</h3>
+          </div>
+          <span id="wroom-SubMode" class="text-xs font-mono px-2 py-0.5 rounded bg-[var(--secondary)]">VSPI + HSPI</span>
+        </div>
+
+        <div class="space-y-1.5 text-xs font-mono">
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">Internal Radio (Core 0):</span>
+            <span id="wroom-int-role">BT Classic + BLE Ch 39</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">nRF24 #1 (VSPI GPIO 18-23):</span>
+            <span id="wroom-nrf1-role" class="text-sky-500">Sweep 2400–2462 MHz</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">nRF24 #2 (HSPI GPIO 12-16):</span>
+            <span id="wroom-nrf2-role" class="text-amber-500">Sweep 2463–2525 MHz</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">BT Classic (BR/EDR) Found:</span>
+            <span id="wroom-bt-classic">0 devices</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">Ghost-Band / ESB HID Hits:</span>
+            <span id="wroom-ghost-hits">0 / 0 frames</span>
+          </div>
+        </div>
+
+        <!-- BLE MAC Rotation De-Anonymizer Box -->
+        <div class="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--border)] space-y-1 font-mono text-xs">
+          <div class="flex items-center justify-between">
+            <span class="text-[var(--muted-foreground)]">BLE De-Anonymizer (FNV-1a):</span>
+            <button onclick="rotateBleMac()" class="px-2 py-0.5 rounded border border-[var(--border)] bg-[var(--secondary)] hover:opacity-80">
+              Simulate MAC Rotate
+            </button>
+          </div>
+          <div id="ble-mac-display" class="text-xs">MAC: 64:A2:11:09:BC:01 → 51:F9:88:3C:10:FE</div>
+          <div class="text-emerald-500 font-semibold">Identity Hash: 0x9F4A2C18 (Persistent!)</div>
+        </div>
+      </div>
+
+      <!-- Node 2: ESP32-C5 (4MB Flash, RISC-V) -->
+      <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-xs font-mono text-amber-500 font-semibold">NODE 0x02 • RISC-V 240MHz</span>
+            <h3 class="text-sm font-bold">ESP32-C5 (5GHz Wi-Fi 6 + Zigbee)</h3>
+          </div>
+          <span id="c5-freq-badge" class="text-xs font-mono px-2 py-0.5 rounded bg-[var(--secondary)]">80 MHz</span>
+        </div>
+
+        <div class="space-y-1.5 text-xs font-mono">
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">Radio Schedule:</span>
+            <span id="c5-schedule" class="text-amber-500">DUAL_BAND_SWEEP</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">Active 5GHz Channels:</span>
+            <span id="c5-channels">36, 44, 149, 157</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">5GHz Deauth / EAPOL:</span>
+            <span id="c5-deauth">0 fps / 0 EAPOL</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">802.15.4 (Zigbee/Thread):</span>
+            <span id="c5-zigbee">PAN Ch 15/20/25 (4 fps)</span>
+          </div>
+        </div>
+
+        <!-- 384KB SRAM Budget Bar -->
+        <div class="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--border)] space-y-1.5 font-mono text-xs">
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">384 KB Internal SRAM Budget:</span>
+            <span id="c5-sram-label">Ring: 96KB | Free: 220KB</span>
+          </div>
+          <div class="w-full h-3 rounded overflow-hidden flex bg-[var(--secondary)]">
+            <div id="c5-sram-ring" class="bg-amber-500 h-full transition-all duration-300" style="width: 25%"></div>
+            <div class="bg-sky-500 h-full" style="width: 18%"></div>
+          </div>
+          <div class="flex justify-between text-[var(--muted-foreground)] text-xs">
+            <span>■ PCAP RingBuf</span>
+            <span>■ RISC-V Stack/MAC (68KB)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Node 3: XIAO ESP32-S3 Sense (8MB PSRAM + Cam/Mic) -->
+      <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-xs font-mono text-emerald-500 font-semibold">NODE 0x03 • Dual LX7 + 8MB PSRAM</span>
+            <h3 class="text-sm font-bold">XIAO ESP32-S3 Sense (Cam/Mic)</h3>
+          </div>
+          <span id="s3-cam-badge" class="text-xs font-mono px-2 py-0.5 rounded bg-[var(--secondary)]">CAM/MIC: OFF</span>
+        </div>
+
+        <div class="space-y-1.5 text-xs font-mono">
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">Sensor Sub-Mode:</span>
+            <span id="s3-submode" class="text-emerald-500">DEEP_PCAP_BUFFER</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">2.4GHz Wi-Fi / Active GATT:</span>
+            <span id="s3-gatt">Ch 1,6,11 / Standby</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">OV2640 Camera + PDM Mic:</span>
+            <span id="s3-fusion-status">Hardware Power-Gated (Privacy)</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">uConsole AIOv2 Sub-GHz:</span>
+            <span id="uconsole-subghz">433.92 / 915 MHz Quiet</span>
+          </div>
+        </div>
+
+        <!-- 8MB Octal PSRAM Dynamic Partition Bar -->
+        <div class="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--border)] space-y-1.5 font-mono text-xs">
+          <div class="flex justify-between">
+            <span class="text-[var(--muted-foreground)]">8192 KB Octal PSRAM Layout:</span>
+            <span id="s3-psram-label">PCAP: 7.0MB | Cam: 0MB</span>
+          </div>
+          <div class="w-full h-3 rounded overflow-hidden flex bg-[var(--secondary)]">
+            <div id="s3-bar-pcap" class="bg-emerald-500 h-full transition-all duration-300" style="width: 87%"></div>
+            <div id="s3-bar-gatt" class="bg-sky-500 h-full transition-all duration-300" style="width: 6%"></div>
+            <div id="s3-bar-cam" class="bg-rose-500 h-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+          <div class="flex justify-between text-[var(--muted-foreground)] text-xs">
+            <span class="text-emerald-500">■ PCAP Ring</span>
+            <span class="text-sky-500">■ GATT Cache</span>
+            <span class="text-rose-500">■ OV2640 + Mic FFT</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    const SCENARIOS = {
+      nominal: {
+        policy: "WIDE_RECON (0x01)",
+        nrfMode: "SPLIT_SPECTRUM_WATERFALL",
+        latency: "19.2 ms",
+        rationale: "RF spectrum nominal -> WROOM Dual-nRF sweeping 126MHz waterfall (nRF#1: 2400-2462, nRF#2: 2463-2525), C5 sweeping 5GHz+Zigbee, S3 in 7MB PSRAM ring buffer.",
+        probs: [
+          ["WIDE_RECON", 98],
+          ["ANOMALY_TRIAGE", 2],
+          ["SURGICAL_CAPTURE", 0],
+          ["TRIANGULATE_LOCK", 0],
+          ["SENTINEL_CORRELATE", 0],
+          ["FLOOD_JAM_SURVIVAL", 0]
+        ],
+        targetPos: { x: 2.8, y: 2.1 },
+        ghostCh: null,
+        jammed: false,
+        deauth5g: 0,
+        eapol5g: 0,
+        btClassic: 0,
+        subGhz: "433.92 / 915 MHz Quiet",
+        wroomInt: "BT Classic + BLE Ch 39",
+        wroomNrf1: "Sweep Ch 0..62 (2400-2462MHz)",
+        wroomNrf2: "Sweep Ch 63..125 (2463-2525MHz)",
+        c5Freq: "80 MHz",
+        c5Sched: "DUAL_BAND_SWEEP",
+        c5Ch: "36, 44, 149, 157",
+        c5RingPct: 25,
+        c5SramText: "Ring: 96KB | Free: 220KB",
+        s3Sub: "DEEP_PCAP_BUFFER",
+        s3Gatt: "Ch 1,6,11 / Passive",
+        s3CamOn: false,
+        s3Bars: { pcap: 87, gatt: 6, cam: 0 },
+        s3PsramText: "PCAP: 7168KB | GATT: 512KB"
+      },
+      ghost_esb: {
+        policy: "TRIANGULATE_LOCK (0x05)",
+        nrfMode: "HUNTER_KILLER_ESB",
+        latency: "24.1 ms",
+        rationale: "Covert Ghost-Band (2498 MHz / nRF Ch 98) + Unencrypted ESB HID keystroke injection spotted by WROOM nRF#1 -> Locking nRF#2 in Promiscuous ESB Sniffer (0xAA55 preamble) + 3-node spatial triangulation!",
+        probs: [
+          ["TRIANGULATE_LOCK", 96],
+          ["SURGICAL_CAPTURE", 3],
+          ["ANOMALY_TRIAGE", 1],
+          ["WIDE_RECON", 0],
+          ["SENTINEL_CORRELATE", 0],
+          ["FLOOD_JAM_SURVIVAL", 0]
+        ],
+        targetPos: { x: 1.2, y: 1.1 },
+        ghostCh: 98,
+        jammed: false,
+        deauth5g: 0,
+        eapol5g: 0,
+        btClassic: 1,
+        subGhz: "433.92 / 915 MHz Quiet",
+        wroomInt: "Triangulation Anchor A + ESP-NOW",
+        wroomNrf1: "Spotter: Sweeping Ch 85..125",
+        wroomNrf2: "SNIPER LOCKED: Ch 98 (2498MHz ESB)",
+        c5Freq: "240 MHz",
+        c5Sched: "TRIANGULATE_ANCHOR_B",
+        c5Ch: "2.4GHz Sync Anchor + Ch 149",
+        c5RingPct: 45,
+        c5SramText: "Ring: 172KB | Free: 144KB",
+        s3Sub: "ACTIVE_BLE_GATT_AUDIT",
+        s3Gatt: "Enumerating GATT UUIDs (1.5MB)",
+        s3CamOn: false,
+        s3Bars: { pcap: 75, gatt: 19, cam: 0 },
+        s3PsramText: "PCAP: 6144KB | GATT: 1536KB"
+      },
+      wifi5_deauth: {
+        policy: "SURGICAL_CAPTURE (0x03)",
+        nrfMode: "SIMULTANEOUS_3CH_BLE",
+        latency: "23.5 ms",
+        rationale: "5 GHz Wi-Fi 6 Evil Twin + Deauth flood on UNII-3 Ch 149 (5745 MHz) -> Pinning ESP32-C5 to Ch 149 @ 240MHz (220KB SRAM Ring) while S3 Sense takes over 100% of 2.4GHz and WROOM locks all 3 BLE Adv channels.",
+        probs: [
+          ["SURGICAL_CAPTURE", 95],
+          ["ANOMALY_TRIAGE", 3],
+          ["TRIANGULATE_LOCK", 2],
+          ["WIDE_RECON", 0],
+          ["SENTINEL_CORRELATE", 0],
+          ["FLOOD_JAM_SURVIVAL", 0]
+        ],
+        targetPos: { x: 4.9, y: 0.9 },
+        ghostCh: null,
+        jammed: false,
+        deauth5g: 48,
+        eapol5g: 4,
+        btClassic: 0,
+        subGhz: "433.92 / 915 MHz Quiet",
+        wroomInt: "BLE Adv Ch 39 (2480MHz) + Classic",
+        wroomNrf1: "Locked BLE Adv Ch 37 (2402MHz)",
+        wroomNrf2: "Locked BLE Adv Ch 38 (2426MHz)",
+        c5Freq: "240 MHz",
+        c5Sched: "SURGICAL_5GHZ_PIN (Ch 149)",
+        c5Ch: "PINNED: Ch 149 (5745 MHz)",
+        c5RingPct: 58,
+        c5SramText: "Ring: 220KB | Free: 76KB",
+        s3Sub: "DEEP_PCAP_BUFFER (2.4GHz Offload)",
+        s3Gatt: "Full 2.4GHz PCAP Capture",
+        s3CamOn: false,
+        s3Bars: { pcap: 92, gatt: 3, cam: 0 },
+        s3PsramText: "PCAP: 7552KB | GATT: 256KB"
+      },
+      layer1_jam: {
+        policy: "FLOOD_JAM_SURVIVAL (0x04)",
+        nrfMode: "LAYER1_JAM_TRIAGE",
+        latency: "21.4 ms",
+        rationale: "WROOM Dual-nRF24 RPD carrier energy pegged > -64dBm across 72 channels while packet decode collapsed -> Confirmed Layer-1 Physical 2.4GHz Jammer! Failing over swarm telemetry & capture to 5GHz on ESP32-C5.",
+        probs: [
+          ["FLOOD_JAM_SURVIVAL", 97],
+          ["SURGICAL_CAPTURE", 2],
+          ["ANOMALY_TRIAGE", 1],
+          ["WIDE_RECON", 0],
+          ["TRIANGULATE_LOCK", 0],
+          ["SENTINEL_CORRELATE", 0]
+        ],
+        targetPos: { x: 1.5, y: 2.3 },
+        ghostCh: null,
+        jammed: true,
+        deauth5g: 0,
+        eapol5g: 0,
+        btClassic: 0,
+        subGhz: "Wideband 2.4GHz Noise Floor +18dB",
+        wroomInt: "HW Filter Active • Jammer Profiling",
+        wroomNrf1: "RPD Carrier Map (72 Ch Pegged!)",
+        wroomNrf2: "Locating Jammer Center Freq",
+        c5Freq: "240 MHz",
+        c5Sched: "5GHZ_FAILOVER_SURVIVAL",
+        c5Ch: "5GHz Unjammed: 36, 44, 149, 165",
+        c5RingPct: 52,
+        c5SramText: "Ring: 200KB | Free: 96KB",
+        s3Sub: "DMA_FILTER_SURVIVAL",
+        s3Gatt: "Dropping Duplicate Flood Frames",
+        s3CamOn: false,
+        s3Bars: { pcap: 85, gatt: 5, cam: 0 },
+        s3PsramText: "PCAP: 6963KB | Ring Throttled"
+      },
+      proximity_fusion: {
+        policy: "SENTINEL_CORRELATE (0x06)",
+        nrfMode: "SIMULTANEOUS_3CH_BLE",
+        latency: "26.8 ms",
+        rationale: "Intruder device breached -35 dBm proximity near S3 Sense + uConsole AIOv2 RTL-SDR caught 433.92 MHz burst -> Shrinking S3 PCAP ring to 4MB, powering ON OV2640 Camera (2.5MB) + PDM Mic FFT (512KB)!",
+        probs: [
+          ["SENTINEL_CORRELATE", 94],
+          ["TRIANGULATE_LOCK", 4],
+          ["SURGICAL_CAPTURE", 2],
+          ["ANOMALY_TRIAGE", 0],
+          ["WIDE_RECON", 0],
+          ["FLOOD_JAM_SURVIVAL", 0]
+        ],
+        targetPos: { x: 3.1, y: 4.4 },
+        ghostCh: null,
+        jammed: false,
+        deauth5g: 0,
+        eapol5g: 0,
+        btClassic: 2,
+        subGhz: "ALERT: 433.92 MHz OOK Burst (-31 dBm)!",
+        wroomInt: "BT Classic SPP Skimmer + BLE Ch 39",
+        wroomNrf1: "Locked BLE Adv Ch 37 (2402MHz)",
+        wroomNrf2: "Locked BLE Adv Ch 38 (2426MHz)",
+        c5Freq: "160 MHz",
+        c5Sched: "TRIANGULATE_ANCHOR_B",
+        c5Ch: "36, 149 + 2.4GHz Sync",
+        c5RingPct: 35,
+        c5SramText: "Ring: 134KB | Free: 182KB",
+        s3Sub: "CAM_AUDIO_CORRELATE",
+        s3Gatt: "OV2640 JPEG + 16kHz PDM Audio FFT",
+        s3CamOn: true,
+        s3Bars: { pcap: 50, gatt: 6, cam: 38 },
+        s3PsramText: "PCAP: 4096KB | Cam+Mic: 3072KB"
+      }
+    };
+
+    let currentScenarioKey = 'nominal';
+    let targetPos = { x: 2.8, y: 2.1 }; // in meters inside 6.0m x 5.2m room
+    let tickCount = 0;
+
+    // Anchor coordinates in meters
+    const ANCHORS = [
+      { id: "WROOM (+2×nRF24)", x: 0.6, y: 0.6, color: "#0ea5e9" },
+      { id: "ESP32-C5 (5GHz)",  x: 5.4, y: 0.6, color: "#f59e0b" },
+      { id: "XIAO S3 Sense",    x: 3.0, y: 4.7, color: "#10b981" }
+    ];
+
+    function setScenario(key) {
+      currentScenarioKey = key;
+      const sc = SCENARIOS[key];
+      targetPos = { ...sc.targetPos };
+
+      document.querySelectorAll('.scenario-btn').forEach(btn => {
+        btn.className = "scenario-btn text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition";
+      });
+      const activeBtn = document.getElementById('btn-' + key);
+      if (activeBtn) {
+        activeBtn.className = "scenario-btn text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--primary)] text-[var(--primary-foreground)] font-semibold transition";
+      }
+
+      updateDashboardUI();
+    }
+
+    function distToRssi(distMeters) {
+      const d = Math.max(0.35, distMeters);
+      return Math.round(-38 - 22 * Math.log10(d));
+    }
+
+    function updateDashboardUI() {
+      const sc = SCENARIOS[currentScenarioKey];
+
+      // Calculate distances & RSSI from current targetPos to the 3 anchors
+      const dWroom = Math.hypot(targetPos.x - ANCHORS[0].x, targetPos.y - ANCHORS[0].y);
+      const dC5    = Math.hypot(targetPos.x - ANCHORS[1].x, targetPos.y - ANCHORS[1].y);
+      const dS3    = Math.hypot(targetPos.x - ANCHORS[2].x, targetPos.y - ANCHORS[2].y);
+
+      const rssiWroom = distToRssi(dWroom);
+      const rssiC5    = distToRssi(dC5);
+      const rssiS3    = distToRssi(dS3);
+
+      document.getElementById('rssi-wroom').textContent = `${rssiWroom} dBm`;
+      document.getElementById('dist-wroom').textContent = `${dWroom.toFixed(1)} m`;
+      document.getElementById('rssi-c5').textContent    = `${rssiC5} dBm`;
+      document.getElementById('dist-c5').textContent    = `${dC5.toFixed(1)} m`;
+      document.getElementById('rssi-s3').textContent    = `${rssiS3} dBm`;
+      document.getElementById('dist-s3').textContent    = `${dS3.toFixed(1)} m`;
+
+      // If user drags target very close (< 1.25m / > -42 dBm) to S3 Sense, auto-trigger SentinelCorrelate!
+      const proximityBreach = rssiS3 > -42 || sc.s3CamOn;
+
+      document.getElementById('laya-latency').textContent = sc.latency;
+      document.getElementById('active-policy-badge').textContent = proximityBreach && currentScenarioKey === 'nominal'
+        ? "SENTINEL_CORRELATE (Auto-Proximity!)"
+        : sc.policy;
+      document.getElementById('active-nrf-badge').textContent = sc.nrfMode;
+      document.getElementById('laya-rationale').textContent = sc.rationale;
+
+      // Render probability bars
+      const barsContainer = document.getElementById('laya-bars');
+      barsContainer.innerHTML = sc.probs.map(([name, pct], idx) => `
+        <div class="grid grid-cols-12 items-center gap-2 text-xs font-mono">
+          <span class="col-span-4 truncate ${idx === 0 ? 'font-bold text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'}">
+            ${idx === 0 ? '✓ ' : ''}${name}
+          </span>
+          <div class="col-span-7 h-2 rounded-full bg-[var(--secondary)] overflow-hidden">
+            <div class="h-full rounded-full ${idx === 0 ? 'bg-emerald-500' : 'bg-sky-500/50'}" style="width: ${pct}%"></div>
+          </div>
+          <span class="col-span-1 text-right ${idx === 0 ? 'text-emerald-500 font-bold' : 'text-[var(--muted-foreground)]'}">${pct}%</span>
+        </div>
+      `).join('');
+
+      // Node 1 WROOM
+      document.getElementById('wroom-int-role').textContent = sc.wroomInt;
+      document.getElementById('wroom-nrf1-role').textContent = sc.wroomNrf1;
+      document.getElementById('wroom-nrf2-role').textContent = sc.wroomNrf2;
+      document.getElementById('wroom-bt-classic').textContent = `${sc.btClassic} BR/EDR devices`;
+      document.getElementById('wroom-ghost-hits').textContent = sc.ghostCh
+        ? `Ch ${sc.ghostCh} (2498MHz) / 9 ESB HID`
+        : "0 Ghost / 0 ESB frames";
+
+      // Node 2 C5
+      document.getElementById('c5-freq-badge').textContent = sc.c5Freq;
+      document.getElementById('c5-schedule').textContent = sc.c5Sched;
+      document.getElementById('c5-channels').textContent = sc.c5Ch;
+      document.getElementById('c5-deauth').textContent = `${sc.deauth5g} fps / ${sc.eapol5g} EAPOL`;
+      document.getElementById('c5-sram-ring').style.width = `${sc.c5RingPct}%`;
+      document.getElementById('c5-sram-label').textContent = sc.c5SramText;
+
+      // Node 3 S3 Sense
+      const camBadge = document.getElementById('s3-cam-badge');
+      if (proximityBreach) {
+        camBadge.textContent = "CAM + PDM MIC: ACTIVE";
+        camBadge.className = "text-xs font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-500 font-bold border border-rose-500/40";
+        document.getElementById('s3-fusion-status').textContent = "OV2640 Frame + Audio FFT Triggered!";
+        document.getElementById('s3-bar-pcap').style.width = "50%";
+        document.getElementById('s3-bar-gatt').style.width = "6%";
+        document.getElementById('s3-bar-cam').style.width = "38%";
+        document.getElementById('s3-psram-label').textContent = "PCAP: 4096KB | Cam+Mic: 3072KB";
+      } else {
+        camBadge.textContent = "CAM/MIC: OFF";
+        camBadge.className = "text-xs font-mono px-2 py-0.5 rounded bg-[var(--secondary)]";
+        document.getElementById('s3-fusion-status').textContent = "Hardware Power-Gated (Privacy)";
+        document.getElementById('s3-bar-pcap').style.width = `${sc.s3Bars.pcap}%`;
+        document.getElementById('s3-bar-gatt').style.width = `${sc.s3Bars.gatt}%`;
+        document.getElementById('s3-bar-cam').style.width = `${sc.s3Bars.cam}%`;
+        document.getElementById('s3-psram-label').textContent = sc.s3PsramText;
+      }
+      document.getElementById('s3-submode').textContent = sc.s3Sub;
+      document.getElementById('s3-gatt').textContent = sc.s3Gatt;
+      document.getElementById('uconsole-subghz').textContent = sc.subGhz;
+
+      document.getElementById('radar-lock-badge').textContent =
+        sc.policy.includes("TRIANGULATE") || proximityBreach ? "3-NODE SYNC LOCK (250ms)" : "COOPERATIVE SWEEP";
+    }
+
+    function rotateBleMac() {
+      const hex = () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase();
+      const newMac = `${hex()}:${hex()}:${hex()}:${hex()}:${hex()}:${hex()}`;
+      document.getElementById('ble-mac-display').textContent = `Rotated MAC: ${newMac} (Apple 0x004C TLV)`;
+    }
+
+    // Draw 126-channel nRF24L01+ Spectrum Canvas
+    function drawSpectrum() {
+      const canvas = document.getElementById('nrfSpectrumCanvas');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const sc = SCENARIOS[currentScenarioKey];
+      const barW = w / 126;
+
+      // Draw Ghost Band background highlight (Ch 85..125)
+      const ghostStartX = 85 * barW;
+      ctx.fillStyle = "rgba(244, 63, 94, 0.08)";
+      ctx.fillRect(ghostStartX, 0, w - ghostStartX, h);
+
+      for (let ch = 0; ch < 126; ch++) {
+        let energy = 0.08 + Math.random() * 0.08;
+
+        // Standard Wi-Fi Ch 1 (ch 12), Ch 6 (ch 37), Ch 11 (ch 62)
+        if (Math.abs(ch - 12) < 8 || Math.abs(ch - 37) < 8 || Math.abs(ch - 62) < 8) {
+          energy += 0.22 + Math.random() * 0.18;
+        }
+        // BLE Adv channels: Ch 2 (2402), Ch 26 (2426), Ch 80 (2480)
+        if (ch === 2 || ch === 26 || ch === 80) {
+          energy += 0.35 + Math.random() * 0.2;
+        }
+        // Scenario overrides
+        if (sc.jammed && ch >= 5 && ch <= 78) {
+          energy = 0.88 + Math.random() * 0.11;
+        }
+        if (sc.ghostCh && Math.abs(ch - sc.ghostCh) <= 1) {
+          energy = ch === sc.ghostCh ? 0.96 : 0.65;
+        }
+
+        const barH = Math.min(h - 10, energy * (h - 14));
+        const x = ch * barW;
+        const y = h - barH;
+
+        if (ch >= 85) {
+          ctx.fillStyle = energy > 0.5 ? "#f43f5e" : "rgba(244, 63, 94, 0.45)";
+        } else if (ch >= 63) {
+          ctx.fillStyle = sc.jammed ? "#ef4444" : "#f59e0b";
+        } else {
+          ctx.fillStyle = sc.jammed ? "#ef4444" : "#0ea5e9";
+        }
+        ctx.fillRect(x, y, Math.max(2, barW - 1), barH);
+      }
+    }
+
+    // Draw 3-Node Spatial Radar Canvas
+    function drawRadar() {
+      const canvas = document.getElementById('radarCanvas');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const mToX = (m) => (m / 6.0) * (w - 40) + 20;
+      const mToY = (m) => (m / 5.2) * (h - 40) + 20;
+
+      // Subtle grid lines
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.15)";
+      ctx.lineWidth = 1;
+      for (let gx = 0; gx <= 6; gx++) {
+        const x = mToX(gx);
+        ctx.beginPath(); ctx.moveTo(x, 15); ctx.lineTo(x, h - 15); ctx.stroke();
+      }
+      for (let gy = 0; gy <= 5; gy++) {
+        const y = mToY(gy);
+        ctx.beginPath(); ctx.moveTo(15, y); ctx.lineTo(w - 15, y); ctx.stroke();
+      }
+
+      const tx = mToX(targetPos.x);
+      const ty = mToY(targetPos.y);
+
+      // Draw RSSI distance circles and bearing lines from each anchor
+      ANCHORS.forEach(a => {
+        const ax = mToX(a.x);
+        const ay = mToY(a.y);
+        const r = Math.hypot(tx - ax, ty - ay);
+
+        ctx.strokeStyle = a.color + "33";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(ax, ay, r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = a.color + "88";
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(tx, ty);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Anchor node dot
+        ctx.fillStyle = a.color;
+        ctx.beginPath();
+        ctx.arc(ax, ay, 7, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = "bold 12px monospace";
+        ctx.fillStyle = a.color;
+        ctx.fillText(a.id, ax - 38, ay < h / 2 ? ay - 12 : ay + 20);
+      });
+
+      // Draw Target Transmitter pulse
+      const pulse = (Math.sin(tickCount * 0.2) + 1) * 6 + 8;
+      ctx.fillStyle = "rgba(244, 63, 94, 0.25)";
+      ctx.beginPath();
+      ctx.arc(tx, ty, pulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#f43f5e";
+      ctx.beginPath();
+      ctx.arc(tx, ty, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.font = "bold 12px monospace";
+      ctx.fillStyle = "#f43f5e";
+      ctx.fillText(`TARGET (${targetPos.x.toFixed(1)}m, ${targetPos.y.toFixed(1)}m)`, Math.min(w - 165, Math.max(15, tx - 60)), Math.max(22, ty - 12));
+    }
+
+    // Interactive radar drag/click handler
+    const radarCanvas = document.getElementById('radarCanvas');
+    let isDragging = false;
+    function updateTargetFromMouse(e) {
+      const rect = radarCanvas.getBoundingClientRect();
+      const scaleX = radarCanvas.width / rect.width;
+      const scaleY = radarCanvas.height / rect.height;
+      const px = (e.clientX - rect.left) * scaleX;
+      const py = (e.clientY - rect.top) * scaleY;
+
+      targetPos.x = Math.max(0.2, Math.min(5.8, ((px - 20) / (radarCanvas.width - 40)) * 6.0));
+      targetPos.y = Math.max(0.2, Math.min(5.0, ((py - 20) / (radarCanvas.height - 40)) * 5.2));
+      updateDashboardUI();
+      drawRadar();
+    }
+    radarCanvas.addEventListener('mousedown', (e) => { isDragging = true; updateTargetFromMouse(e); });
+    window.addEventListener('mousemove', (e) => { if (isDragging) updateTargetFromMouse(e); });
+    window.addEventListener('mouseup', () => { isDragging = false; });
+
+    setInterval(() => {
+      tickCount++;
+      drawSpectrum();
+      drawRadar();
+    }, 120);
+
+    setScenario('nominal');
+  </script>
+</body>
+</html>
