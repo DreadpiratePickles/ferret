@@ -2,7 +2,8 @@
 //!
 //! No allocation: scripted data lives in fixed-size arrays with cursors.
 
-use crate::{Clock, PacketSniffer, SpectrumScanner, Transport};
+pub use crate::FrameKind;
+use crate::{Clock, FrameMeta, PacketSniffer, SpectrumScanner, Transport};
 use ferrum_proto::ESP_NOW_MAX_PAYLOAD;
 
 /// Number of addressable channels (`u8` channel index).
@@ -56,26 +57,20 @@ impl SpectrumScanner for MockScanner {
     }
 }
 
-/// Kind of a captured frame.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum FrameKind {
-    /// Enhanced ShockBurst (nRF24) frame.
-    Esb,
-    /// BLE advertisement.
-    BleAdv,
-    /// 802.11 management frame.
-    WifiMgmt,
-    /// 802.11 deauthentication / disassociation.
-    Deauth,
-    /// WPA EAPOL handshake frame.
-    Eapol,
-}
-
 /// Minimal captured frame: where it was heard and what it was.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct MockFrame {
     pub channel: u8,
     pub kind: FrameKind,
+}
+
+impl FrameMeta for MockFrame {
+    fn kind(&self) -> FrameKind {
+        self.kind
+    }
+    fn channel(&self) -> u8 {
+        self.channel
+    }
 }
 
 /// Scripted sniffer yielding up to `N` frames in order, then `None`.

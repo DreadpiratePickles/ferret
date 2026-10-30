@@ -11,6 +11,9 @@
 //!   - **nRF24 #1 (`VSPI` / `SPI3`):** `SCK=18, MISO=19, MOSI=23, CSN=21, CE=22`
 //!   - **nRF24 #2 (`HSPI` / `SPI2`):** `SCK=14, MISO=12, MOSI=13, CSN=15, CE=16`
 
+use ferrum_hal::{
+    Clock, FrameKind, FrameMeta, NodeStatus, PacketSniffer, SpectrumScanner, Transport,
+};
 use ferrum_proto::{
     BleDeviceFingerprint, DualNrfPolicy, FerrumPolicyCmd, NodeId, NodeTelemetry, NrfSpectrumBitmap,
     PolicyMode,
@@ -249,7 +252,7 @@ impl WroomDualNrfNode {
 
     /// Generates the 24-byte `NodeTelemetry` frame for ESP-NOW transmission to the Pi 5.
     pub fn build_telemetry(&self) -> NodeTelemetry {
-        let mut t = NodeTelemetry {
+        let t = NodeTelemetry {
             node_id: NodeId::WroomDualNrf as u8,
             active_policy: self.active_policy as u8,
             sub_policy: self.dual_nrf_policy as u8,
@@ -269,9 +272,155 @@ impl WroomDualNrfNode {
             peak_anomaly_rssi: self.peak_rssi,
             crc8: 0,
         };
-        let bytes = t.to_bytes();
-        t.crc8 = bytes[23];
-        t
+        seal_telemetry(t)
+    }
+}
+
+/// Stamps the integrity checksum into a freshly assembled telemetry frame.
+fn seal_telemetry(mut t: NodeTelemetry) -> NodeTelemetry {
+    let bytes = t.to_bytes();
+    t.crc8 = bytes[NodeTelemetry::SIZE - 1];
+    t
+}
+
+/// Number of nRF24L01+ RF channels swept per cycle (`2400..=2525 MHz`).
+pub const NRF_CHANNEL_COUNT: u8 = 126;
+/// RSSI reported when no carrier energy was seen anywhere in the sweep.
+pub const QUIET_RSSI_DBM: i8 = -100;
+/// Upper bound on frames drained from the sniffer per tick (guards against a never-empty source).
+pub const MAX_FRAMES_PER_TICK: usize = 256;
+
+/// Trait-driven WROOM node agent: the same logic runs on simulated PHYs and real `esp-hal` drivers.
+///
+/// Each [`tick`](Self::tick) sweeps the 126 nRF channels through the injected
+/// [`SpectrumScanner`], drains the [`PacketSniffer`], assembles a [`NodeTelemetry`]
+/// and relays it over the [`Transport`]. A transport failure degrades to
+/// [`NodeStatus::Offline`] instead of panicking.
+pub struct WroomAgent<S, P, T, C>
+where
+    S: SpectrumScanner,
+    P: PacketSniffer,
+    T: Transport,
+    C: Clock,
+{
+    node: WroomDualNrfNode,
+    scanner: S,
+    sniffer: P,
+    transport: T,
+    clock: C,
+    last_tick_ms: Option<u64>,
+}
+
+impl<S, P, T, C> WroomAgent<S, P, T, C>
+where
+    S: SpectrumScanner,
+    P: PacketSniffer,
+    P::Frame: FrameMeta,
+    T: Transport,
+    C: Clock,
+{
+    pub fn new(scanner: S, sniffer: P, transport: T, clock: C) -> Self {
+        Self {
+            node: WroomDualNrfNode::new(),
+            scanner,
+            sniffer,
+            transport,
+            clock,
+            last_tick_ms: None,
+        }
+    }
+
+    /// Applies a `FerrumPolicyCmd` from the Pi 5 Brain (ignored if addressed to another node).
+    pub fn apply_policy_cmd(&mut self, cmd: &FerrumPolicyCmd) {
+        self.node.apply_policy_cmd(cmd);
+    }
+
+    /// One sweep + triage + relay cycle.
+    ///
+    /// The scanner sweeps all 126 channels sequentially (the split-spectrum
+    /// parallelism across the two physical nRFs lives in the scanner implementation).
+    pub fn tick(&mut self) -> NodeStatus {
+        let now = self.clock.now_ms();
+        let elapsed_ms = self.last_tick_ms.map_or(0, |t| now.saturating_sub(t));
+        self.last_tick_ms = Some(now);
+
+        // 1. Spectrum sweep: RPD per channel; strongest active channel becomes the hotspot.
+        let mut spectrum = NrfSpectrumBitmap::empty();
+        let mut hotspot: Option<(u8, i8)> = None;
+        for ch in 0..NRF_CHANNEL_COUNT {
+            self.scanner.set_channel(ch);
+            if self.scanner.read_rpd() {
+                spectrum.set_channel(ch, true);
+                let rssi = self.scanner.sample_rssi();
+                if hotspot.is_none_or(|(_, best)| rssi > best) {
+                    hotspot = Some((ch, rssi));
+                }
+            }
+        }
+        self.node.spectrum = spectrum;
+        match hotspot {
+            Some((ch, rssi)) => {
+                self.node.last_hotspot_nrf_ch = ch;
+                self.node.peak_rssi = rssi;
+            }
+            None => self.node.peak_rssi = QUIET_RSSI_DBM,
+        }
+
+        // 2. Drain the sniffer into per-window counters.
+        let (mut esb, mut ble, mut wifi, mut deauth, mut eapol) = (0u32, 0u32, 0u32, 0u32, 0u32);
+        for _ in 0..MAX_FRAMES_PER_TICK {
+            let Some(frame) = self.sniffer.next_frame() else {
+                break;
+            };
+            match frame.kind() {
+                FrameKind::Esb => esb += 1,
+                FrameKind::BleAdv => ble += 1,
+                FrameKind::WifiMgmt => wifi += 1,
+                FrameKind::Deauth => deauth += 1,
+                FrameKind::Eapol => eapol += 1,
+            }
+        }
+        let per_sec = |n: u32| -> u16 {
+            let v = (u64::from(n) * 1000)
+                .checked_div(elapsed_ms)
+                .unwrap_or(u64::from(n));
+            v.min(u64::from(u16::MAX)) as u16
+        };
+        self.node.esb_frames_captured = esb.min(u32::from(u8::MAX)) as u8;
+        self.node.ble_adv_fps = per_sec(ble);
+        self.node.deauth_cnt = deauth.min(u32::from(u16::MAX)) as u16;
+
+        // 3. Assemble + seal telemetry.
+        let mut t = self.node.build_telemetry();
+        t.wifi_mgmt_fps = per_sec(wifi);
+        t.eapol_handshake_cnt = eapol.min(u32::from(u8::MAX)) as u8;
+        let t = seal_telemetry(t);
+
+        // 4. Relay; a transport failure means the node is Offline (never panic).
+        match self.transport.send(&t.to_bytes()) {
+            Ok(()) => NodeStatus::Online(t),
+            Err(_) => NodeStatus::Offline,
+        }
+    }
+
+    /// Current high-level policy mode.
+    pub fn active_policy(&self) -> PolicyMode {
+        self.node.active_policy
+    }
+
+    /// Current dual-nRF sub-policy.
+    pub fn dual_nrf_policy(&self) -> DualNrfPolicy {
+        self.node.dual_nrf_policy
+    }
+
+    /// Spectrum bitmap from the most recent sweep.
+    pub fn spectrum(&self) -> &NrfSpectrumBitmap {
+        &self.node.spectrum
+    }
+
+    /// Borrow the transport (useful for tests/simulation inspection).
+    pub fn transport(&self) -> &T {
+        &self.transport
     }
 }
 
@@ -404,5 +553,108 @@ mod tests {
         );
         assert_eq!(fp1.company_id, 0x004C);
         assert!(!fp1.is_ble_spam);
+    }
+
+    use ferrum_hal::mock::{
+        FrameKind, MockClock, MockFrame, MockScanner, MockSniffer, MockTransport,
+    };
+    use ferrum_hal::NodeStatus;
+
+    fn frame(kind: FrameKind) -> MockFrame {
+        MockFrame { channel: 95, kind }
+    }
+
+    #[test]
+    fn test_agent_builds_telemetry_from_scanner() {
+        // Ghost-band hit on nRF ch 110 (2510 MHz) + two MouseJack-style ESB frames.
+        let scanner = MockScanner::new().with(110, true, -34);
+        let sniffer = MockSniffer::new([frame(FrameKind::Esb), frame(FrameKind::Esb)]);
+        let mut agent = WroomAgent::new(scanner, sniffer, MockTransport::new(), MockClock::new(0));
+
+        match agent.tick() {
+            NodeStatus::Online(t) => {
+                assert!(t.ghost_band_hits > 0, "ghost band hit must be reported");
+                assert!(t.esb_hid_frames > 0, "ESB frames must be counted");
+                assert_eq!(t.node_id, NodeId::WroomDualNrf as u8);
+                assert_eq!(t.primary_channel, 110);
+                assert_eq!(t.peak_anomaly_rssi, -34);
+            }
+            NodeStatus::Offline => panic!("healthy transport must be Online"),
+        }
+    }
+
+    #[test]
+    fn test_agent_relays_telemetry_over_transport() {
+        let mut agent = WroomAgent::new(
+            MockScanner::new(),
+            MockSniffer::new([frame(FrameKind::Deauth)]),
+            MockTransport::new(),
+            MockClock::new(0),
+        );
+        let status = agent.tick();
+        let sent = agent.transport().last_sent();
+        assert_eq!(sent.len(), NodeTelemetry::SIZE);
+        let mut buf = [0u8; NodeTelemetry::SIZE];
+        buf.copy_from_slice(sent);
+        let decoded = NodeTelemetry::from_bytes(&buf).expect("valid crc");
+        assert_eq!(status, NodeStatus::Online(decoded));
+        assert_eq!(decoded.deauth_disassoc_cnt, 1);
+    }
+
+    #[test]
+    fn test_agent_offline_on_transport_error() {
+        let mut agent = WroomAgent::new(
+            MockScanner::new().with(110, true, -34),
+            MockSniffer::new([frame(FrameKind::Esb)]),
+            MockTransport::failing(),
+            MockClock::new(0),
+        );
+        // Must not panic, and must degrade to Offline.
+        assert_eq!(agent.tick(), NodeStatus::Offline);
+        // Still usable on the next tick (no poisoned state).
+        assert_eq!(agent.tick(), NodeStatus::Offline);
+    }
+
+    #[test]
+    fn test_agent_sweeps_all_126_channels_and_resets_each_tick() {
+        let mut agent = WroomAgent::new(
+            MockScanner::new().with(0, true, -50).with(125, true, -60),
+            MockSniffer::new([]),
+            MockTransport::new(),
+            MockClock::new(0),
+        );
+        let NodeStatus::Online(t) = agent.tick() else {
+            panic!("online expected");
+        };
+        // ch 125 is in the ghost band; ch 0 is not.
+        assert_eq!(t.ghost_band_hits, 1);
+        assert!(agent.spectrum().get_channel(0));
+        assert!(agent.spectrum().get_channel(125));
+    }
+
+    #[test]
+    fn test_agent_policy_cmd_targets_wroom_only() {
+        let mut agent = WroomAgent::new(
+            MockScanner::new(),
+            MockSniffer::new([]),
+            MockTransport::new(),
+            MockClock::new(0),
+        );
+        let mut cmd = FerrumPolicyCmd {
+            target_node: NodeId::WroomDualNrf as u8,
+            policy_mode: PolicyMode::SurgicalCapture as u8,
+            dual_nrf_mode: 0x02,
+            pinned_channels: [0; 4],
+            dwell_time_ms: 250,
+            cpu_freq_mhz: 240,
+            s3_psram_pcap_quota_kb: 0,
+            crc8: 0,
+        };
+        agent.apply_policy_cmd(&cmd);
+        assert_eq!(agent.dual_nrf_policy(), DualNrfPolicy::HunterKillerEsb);
+        cmd.target_node = 0xEE; // someone else's command is ignored
+        cmd.dual_nrf_mode = 0x04;
+        agent.apply_policy_cmd(&cmd);
+        assert_eq!(agent.dual_nrf_policy(), DualNrfPolicy::HunterKillerEsb);
     }
 }

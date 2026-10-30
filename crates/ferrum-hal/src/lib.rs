@@ -29,6 +29,28 @@ pub trait PacketSniffer {
     fn next_frame(&mut self) -> Option<Self::Frame>;
 }
 
+/// Classification of a captured frame.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum FrameKind {
+    /// Enhanced ShockBurst (nRF24) frame.
+    Esb,
+    /// BLE advertisement.
+    BleAdv,
+    /// 802.11 management frame.
+    WifiMgmt,
+    /// 802.11 deauthentication / disassociation.
+    Deauth,
+    /// WPA EAPOL handshake frame.
+    Eapol,
+}
+
+/// What an agent needs to know about a sniffed frame, independent of the
+/// platform-specific `PacketSniffer::Frame` representation.
+pub trait FrameMeta {
+    fn kind(&self) -> FrameKind;
+    fn channel(&self) -> u8;
+}
+
 /// A datagram transport to the swarm (e.g. ESP-NOW).
 pub trait Transport {
     type Error;
