@@ -15,9 +15,18 @@ pub struct RssiHistogram {
     pub total: u32,
 }
 
+impl Default for RssiHistogram {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RssiHistogram {
     pub const fn new() -> Self {
-        Self { bins: [0; 16], total: 0 }
+        Self {
+            bins: [0; 16],
+            total: 0,
+        }
     }
 
     pub fn update(&mut self, rssi_dbm: i8) {
@@ -86,9 +95,19 @@ pub struct RateWindow<const WINDOW: usize> {
     total: u32,
 }
 
+impl<const WINDOW: usize> Default for RateWindow<WINDOW> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const WINDOW: usize> RateWindow<WINDOW> {
     pub const fn new() -> Self {
-        Self { slots: [0; WINDOW], idx: 0, total: 0 }
+        Self {
+            slots: [0; WINDOW],
+            idx: 0,
+            total: 0,
+        }
     }
 
     pub fn event(&mut self) {
@@ -193,10 +212,18 @@ mod tests {
     #[test]
     fn histogram_statistics() {
         let mut h = RssiHistogram::new();
-        for _ in 0..10 { h.update(-40); }
-        for _ in 0..10 { h.update(-60); }
+        for _ in 0..10 {
+            h.update(-40);
+        }
+        for _ in 0..10 {
+            h.update(-60);
+        }
         let mean = h.mean_q();
-        assert!(mean <= -180 && mean >= -210, "mean ≈ -190 quarter-dBm (-47.5dBm), got {}", mean);
+        assert!(
+            (-210..=-180).contains(&mean),
+            "mean ≈ -190 quarter-dBm (-47.5dBm), got {}",
+            mean
+        );
         assert!(h.stdev_q() > 0);
         assert_eq!(h.dominant_bin(), 8); // bin 8 covers [-60,-56)
     }
@@ -204,7 +231,9 @@ mod tests {
     #[test]
     fn rate_window_averages() {
         let mut w = RateWindow::<4>::new();
-        for _ in 0..8 { w.event(); }
+        for _ in 0..8 {
+            w.event();
+        }
         assert_eq!(w.per_sec(), 8);
         assert_eq!(w.avg_per_sec_q(), 8 * 4 / 4);
         w.tick();
@@ -221,9 +250,14 @@ mod tests {
     #[test]
     fn feature_vector_wire_roundtrip() {
         let fv = FeatureVector {
-            mean_rssi_q: -200, rssi_std_q: 40, mgmt_rate_q: 120,
-            deauth_rate_q: 0, entropy_q: 250, alarm_flags: flags::JAM,
-            node_id: 3, crc8: 0,
+            mean_rssi_q: -200,
+            rssi_std_q: 40,
+            mgmt_rate_q: 120,
+            deauth_rate_q: 0,
+            entropy_q: 250,
+            alarm_flags: flags::JAM,
+            node_id: 3,
+            crc8: 0,
         };
         let b = fv.to_bytes();
         let back = FeatureVector::from_bytes(&b).expect("crc ok");

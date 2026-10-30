@@ -16,9 +16,9 @@ use ferrum_proto::compute_crc8;
 pub struct FakeSoftAp {
     pub ssid: [u8; 32],
     pub ssid_len: u8,
-    pub channel: u8,          // 1..=11 (2.4 GHz)
+    pub channel: u8, // 1..=11 (2.4 GHz)
     pub bssid: [u8; 6],
-    pub seq: u16,             // 802.11 sequence counter (increments per beacon)
+    pub seq: u16, // 802.11 sequence counter (increments per beacon)
     pub beacon_interval_tu: u16,
 }
 
@@ -28,7 +28,14 @@ impl FakeSoftAp {
         let bytes = ssid.as_bytes();
         let len = bytes.len().min(32);
         s[..len].copy_from_slice(&bytes[..len]);
-        Self { ssid: s, ssid_len: len as u8, channel, bssid, seq: 0, beacon_interval_tu: 100 }
+        Self {
+            ssid: s,
+            ssid_len: len as u8,
+            channel,
+            bssid,
+            seq: 0,
+            beacon_interval_tu: 100,
+        }
     }
 
     /// Build one management beacon frame (fixed 128-byte staging buffer, returns used length).
@@ -48,12 +55,16 @@ impl FakeSoftAp {
         let ts = (self.seq as u64).wrapping_mul(1024);
         f[24..32].copy_from_slice(&ts.to_le_bytes());
         f[32..34].copy_from_slice(&self.beacon_interval_tu.to_le_bytes());
-        f[34] = 0x01; f[35] = 0x00; // Capability: ESS
+        f[34] = 0x01;
+        f[35] = 0x00; // Capability: ESS
         let mut i = 36;
-        f[i] = 0x00; f[i + 1] = self.ssid_len; // SSID IE
-        f[i + 2..i + 2 + self.ssid_len as usize].copy_from_slice(&self.ssid[..self.ssid_len as usize]);
+        f[i] = 0x00;
+        f[i + 1] = self.ssid_len; // SSID IE
+        f[i + 2..i + 2 + self.ssid_len as usize]
+            .copy_from_slice(&self.ssid[..self.ssid_len as usize]);
         i += 2 + self.ssid_len as usize;
-        f[i] = 0x01; f[i + 1] = 0x04; // Supported rates IE
+        f[i] = 0x01;
+        f[i + 1] = 0x04; // Supported rates IE
         f[i + 2..i + 6].copy_from_slice(&[0x82, 0x84, 0x8B, 0x96]);
         i += 6;
         (f, i)
@@ -78,8 +89,8 @@ pub enum DecoyKind {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct BleDecoyBeacon {
     pub kind: DecoyKind,
-    pub canary_id: u16,        // per-decoy, per-location unique
-    pub uuid: [u8; 16],        // iBeacon UUID / Eddystone namespace+instance
+    pub canary_id: u16, // per-decoy, per-location unique
+    pub uuid: [u8; 16], // iBeacon UUID / Eddystone namespace+instance
     pub major: u16,
     pub minor: u16,
     pub tx_power_dbm: i8,
@@ -89,12 +100,17 @@ impl BleDecoyBeacon {
     /// Build the 31-byte BLE advertising payload (flags AD structure + manufacturer data).
     pub fn build_adv_payload(&self) -> ([u8; 31], usize) {
         let mut p = [0u8; 31];
-        p[0] = 0x02; p[1] = 0x01; p[2] = 0x06; // Flags: BR/EDR not supported
+        p[0] = 0x02;
+        p[1] = 0x01;
+        p[2] = 0x06; // Flags: BR/EDR not supported
         match self.kind {
             DecoyKind::IBeacon => {
-                p[3] = 0x1A; p[4] = 0xFF; // Len 26, Manufacturer Specific
-                p[5] = 0x4C; p[6] = 0x00; // Apple
-                p[7] = 0x02; p[8] = 0x15; // iBeacon type/len
+                p[3] = 0x1A;
+                p[4] = 0xFF; // Len 26, Manufacturer Specific
+                p[5] = 0x4C;
+                p[6] = 0x00; // Apple
+                p[7] = 0x02;
+                p[8] = 0x15; // iBeacon type/len
                 p[9..25].copy_from_slice(&self.uuid);
                 p[25..27].copy_from_slice(&self.major.to_be_bytes());
                 p[27..29].copy_from_slice(&self.minor.to_be_bytes());
@@ -102,17 +118,21 @@ impl BleDecoyBeacon {
                 (p, 30)
             }
             DecoyKind::EddystoneUid => {
-                p[3] = 0x17; p[4] = 0x16; // Len 23, Service Data
-                p[5] = 0xAA; p[6] = 0xFE; // Eddystone UUID
-                p[7] = 0x00;              // Frame type: UID
+                p[3] = 0x17;
+                p[4] = 0x16; // Len 23, Service Data
+                p[5] = 0xAA;
+                p[6] = 0xFE; // Eddystone UUID
+                p[7] = 0x00; // Frame type: UID
                 p[8] = self.tx_power_dbm as u8;
-                p[9..17].copy_from_slice(&self.uuid[..8]);  // namespace
+                p[9..17].copy_from_slice(&self.uuid[..8]); // namespace
                 p[17..23].copy_from_slice(&self.uuid[8..14]); // instance
                 (p, 23)
             }
             DecoyKind::CanaryGatt => {
-                p[3] = 0x15; p[4] = 0x16; // Service data
-                p[5] = 0xF1; p[6] = 0xFE; // 16-bit canary service UUID (custom)
+                p[3] = 0x15;
+                p[4] = 0x16; // Service data
+                p[5] = 0xF1;
+                p[6] = 0xFE; // 16-bit canary service UUID (custom)
                 p[7..9].copy_from_slice(&self.canary_id.to_be_bytes());
                 p[9..25].copy_from_slice(&self.uuid);
                 (p, 25)
@@ -122,17 +142,17 @@ impl BleDecoyBeacon {
 }
 
 /// Decoy GATT service name planted in the canary advertisement — bait for service scanners.
-pub const CANARY_DECOY_NAME: &[u8; 21] = b"BUILDING_ACCESS_CFG\x00";
+pub const CANARY_DECOY_NAME: &[u8; 20] = b"BUILDING_ACCESS_CFG\x00";
 
 /// Tripwire event kinds (what the intruder did to the decoy).
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum TripwireKind {
-    ProbeRequest           = 0x01, // Wi-Fi probe for the decoy SSID
-    Association            = 0x02, // Wi-Fi association attempt
-    DeauthAgainstDecoy     = 0x03, // attacker deauthing our decoy (very high value)
-    BleConnect             = 0x04,
-    GattRead               = 0x05,
+    ProbeRequest = 0x01,       // Wi-Fi probe for the decoy SSID
+    Association = 0x02,        // Wi-Fi association attempt
+    DeauthAgainstDecoy = 0x03, // attacker deauthing our decoy (very high value)
+    BleConnect = 0x04,
+    GattRead = 0x05,
     CanaryProbedExternally = 0x06, // canary ID seen outside swarm envelope
 }
 
@@ -141,7 +161,7 @@ pub enum TripwireKind {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct TripwireEvent {
     pub decoy_id: u16,
-    pub kind: u8,               // TripwireKind
+    pub kind: u8, // TripwireKind
     pub intruder_mac: [u8; 6],
     pub rssi_dbm: i8,
     pub timestamp_s: u32,
@@ -152,8 +172,23 @@ pub struct TripwireEvent {
 impl TripwireEvent {
     pub const SIZE: usize = 24;
 
-    pub fn new(decoy_id: u16, kind: TripwireKind, mac: [u8; 6], rssi: i8, ts: u32, node: u8) -> Self {
-        Self { decoy_id, kind: kind as u8, intruder_mac: mac, rssi_dbm: rssi, timestamp_s: ts, node_id: node, crc8: 0 }
+    pub fn new(
+        decoy_id: u16,
+        kind: TripwireKind,
+        mac: [u8; 6],
+        rssi: i8,
+        ts: u32,
+        node: u8,
+    ) -> Self {
+        Self {
+            decoy_id,
+            kind: kind as u8,
+            intruder_mac: mac,
+            rssi_dbm: rssi,
+            timestamp_s: ts,
+            node_id: node,
+            crc8: 0,
+        }
     }
 
     pub fn to_bytes(&self) -> [u8; Self::SIZE] {
@@ -223,7 +258,9 @@ mod tests {
             kind: DecoyKind::IBeacon,
             canary_id: 0x0007,
             uuid: [0x11; 16],
-            major: 1, minor: 2, tx_power_dbm: -59,
+            major: 1,
+            minor: 2,
+            tx_power_dbm: -59,
         };
         let (p, len) = b.build_adv_payload();
         assert_eq!(len, 30);
@@ -235,8 +272,12 @@ mod tests {
     #[test]
     fn tripwire_event_wire_roundtrip() {
         let e = TripwireEvent::new(
-            0x0007, TripwireKind::Association,
-            [0x64, 0xA2, 0x11, 0x09, 0xBC, 0x01], -41, 1_700_000_120, 0x01,
+            0x0007,
+            TripwireKind::Association,
+            [0x64, 0xA2, 0x11, 0x09, 0xBC, 0x01],
+            -41,
+            1_700_000_120,
+            0x01,
         );
         let b = e.to_bytes();
         let back = TripwireEvent::from_bytes(&b).expect("crc ok");

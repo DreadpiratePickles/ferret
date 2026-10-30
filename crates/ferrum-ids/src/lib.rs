@@ -120,7 +120,10 @@ impl IdsEngine {
                 severity: Severity::High,
                 title: "DEAUTH/DISASSOC FLOOD",
                 mitre: "T1498",
-                explanation: format!("{} deauth/disassoc frames in one 250ms window", total_deauth),
+                explanation: format!(
+                    "{} deauth/disassoc frames in one 250ms window",
+                    total_deauth
+                ),
                 recommended_policy: PolicyMode::SurgicalCapture,
             });
         }
@@ -177,7 +180,10 @@ impl IdsEngine {
                 severity: Severity::Medium,
                 title: "BLE ADVERTISEMENT SPAM",
                 mitre: "T1498",
-                explanation: format!("{} BLE adv/sec (Flipper/SourApple-class flood)", wroom.ble_adv_fps),
+                explanation: format!(
+                    "{} BLE adv/sec (Flipper/SourApple-class flood)",
+                    wroom.ble_adv_fps
+                ),
                 recommended_policy: PolicyMode::IdsEnforce,
             });
         }
@@ -189,7 +195,10 @@ impl IdsEngine {
                 severity: Severity::Medium,
                 title: "802.15.4 PAN ACTIVITY",
                 mitre: "T1011",
-                explanation: format!("{} 802.15.4 frames observed on C5 (verify against known PAN inventory)", c5.zigbee_pan_frames),
+                explanation: format!(
+                    "{} 802.15.4 frames observed on C5 (verify against known PAN inventory)",
+                    c5.zigbee_pan_frames
+                ),
                 recommended_policy: PolicyMode::AnomalyTriage,
             });
         }
@@ -235,11 +244,24 @@ mod tests {
 
     fn quiet(node: u8) -> NodeTelemetry {
         NodeTelemetry {
-            node_id: node, active_policy: 0x01, sub_policy: 0x01, primary_channel: 6,
-            cpu_load_pct: 30, free_sram_kb: 300, free_psram_kb: 0, ringbuf_drops: 0,
-            wifi_mgmt_fps: 60, deauth_disassoc_cnt: 0, eapol_handshake_cnt: 0,
-            ble_adv_fps: 120, bt_classic_inq_cnt: 0, ghost_band_hits: 0,
-            esb_hid_frames: 0, zigbee_pan_frames: 0, peak_anomaly_rssi: -70, crc8: 0,
+            node_id: node,
+            active_policy: 0x01,
+            sub_policy: 0x01,
+            primary_channel: 6,
+            cpu_load_pct: 30,
+            free_sram_kb: 300,
+            free_psram_kb: 0,
+            ringbuf_drops: 0,
+            wifi_mgmt_fps: 60,
+            deauth_disassoc_cnt: 0,
+            eapol_handshake_cnt: 0,
+            ble_adv_fps: 120,
+            bt_classic_inq_cnt: 0,
+            ghost_band_hits: 0,
+            esb_hid_frames: 0,
+            zigbee_pan_frames: 0,
+            peak_anomaly_rssi: -70,
+            crc8: 0,
         }
     }
 
@@ -247,13 +269,24 @@ mod tests {
     fn quiet_environment_produces_no_detections() {
         let eng = IdsEngine::default();
         let d = eng.evaluate(&quiet(1), &quiet(2), &quiet(3), 3, &[]);
-        assert!(d.is_empty(), "unexpected: {:?}", d.iter().map(|x| x.title).collect::<Vec<_>>());
+        assert!(
+            d.is_empty(),
+            "unexpected: {:?}",
+            d.iter().map(|x| x.title).collect::<Vec<_>>()
+        );
     }
 
     #[test]
     fn honeypot_trip_is_critical_and_escalates_to_lockdown() {
         let eng = IdsEngine::default();
-        let trip = TripwireEvent::new(7, TripwireKind::Association, [0x64; 6], -45, 1_700_000_000, 0x01);
+        let trip = TripwireEvent::new(
+            7,
+            TripwireKind::Association,
+            [0x64; 6],
+            -45,
+            1_700_000_000,
+            0x01,
+        );
         let d = eng.evaluate(&quiet(1), &quiet(2), &quiet(3), 3, &[trip]);
         assert_eq!(d[0].severity, Severity::Critical);
         assert_eq!(eng.escalate(&d), Some(PolicyMode::ForensicLockdown));

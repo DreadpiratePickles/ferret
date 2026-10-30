@@ -80,7 +80,11 @@ pub trait Nrf24Hal {
 /// Uses the classic illegal `SETUP_AW = 0x00` (2-byte address width) with `0xAA55` alternating
 /// preamble bytes and `EN_AA = 0x00`, `CRC = disabled` so the radio shifts raw demodulated GFSK
 /// frames (MouseJack wireless keyboards/mice, drone RC links, raw BLE advertising bits) into RX FIFO.
-pub fn configure_nrf_promiscuous_sniffer<H: Nrf24Hal>(radio: &mut H, channel: u8, rate_2mbps: bool) {
+pub fn configure_nrf_promiscuous_sniffer<H: Nrf24Hal>(
+    radio: &mut H,
+    channel: u8,
+    rate_2mbps: bool,
+) {
     radio.set_ce(false);
     // Power up in PRX mode (PRIM_RX = 1, PWR_UP = 1, CRC disabled = 0)
     radio.write_reg(nrf_regs::REG_CONFIG, 0x03);
@@ -106,15 +110,29 @@ pub fn configure_nrf_promiscuous_sniffer<H: Nrf24Hal>(radio: &mut H, channel: u8
 pub enum RfThreatVerdict {
     Nominal,
     /// High 802.11 Deauth/Disassoc frames with normal RPD carrier floor -> Protocol attack (e.g. Marauder).
-    Layer2DeauthAttack { channel: u8, fps: u16 },
+    Layer2DeauthAttack {
+        channel: u8,
+        fps: u16,
+    },
     /// Pegged RPD carrier energy across channels with collapsing packet decode -> Physical RF Jammer!
-    Layer1PhysicalJammer { jammed_channels: u8, ble_adv_blinded: bool },
+    Layer1PhysicalJammer {
+        jammed_channels: u8,
+        ble_adv_blinded: bool,
+    },
     /// Activity detected in `2485..=2525 MHz` (Channels 85..125) above standard Wi-Fi/BLE!
-    GhostBandTransmitter { peak_channel: u8, hit_count: u8 },
+    GhostBandTransmitter {
+        peak_channel: u8,
+        hit_count: u8,
+    },
     /// Vulnerable unencrypted ESB / Wireless HID / MouseJack frame captured by nRF#2!
-    EsbWirelessHidInject { channel: u8, address_prefix: [u8; 4] },
+    EsbWirelessHidInject {
+        channel: u8,
+        address_prefix: [u8; 4],
+    },
     /// High-rate BLE Continuity / FastPair spam (Flipper Zero / Wall of Flippers signature).
-    BleAdvSpamAttack { adv_fps: u16 },
+    BleAdvSpamAttack {
+        adv_fps: u16,
+    },
 }
 
 /// State machine running on the **ESP32-WROOM + Dual nRF24L01+** node.
@@ -130,6 +148,12 @@ pub struct WroomDualNrfNode {
     pub esb_frames_captured: u8,
     pub last_hotspot_nrf_ch: u8,
     pub peak_rssi: i8,
+}
+
+impl Default for WroomDualNrfNode {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl WroomDualNrfNode {
@@ -298,7 +322,9 @@ pub fn compute_ble_structural_fingerprint(
                 hash = hash.wrapping_mul(0x0100_0193);
 
                 // Detect Flipper Zero / SourApple / SwiftPair spoofed pop-up spam frames
-                if (company_id == 0x004C && (sub_type == 0x0F || sub_type == 0x07) && adv_interval_ms < 25)
+                if (company_id == 0x004C
+                    && (sub_type == 0x0F || sub_type == 0x07)
+                    && adv_interval_ms < 25)
                     || (company_id == 0x0006 && adv_interval_ms < 20)
                 {
                     is_spam_signature = true;
@@ -350,20 +376,32 @@ mod tests {
         let pdu_before: [u8; 14] = [
             0x02, 0x01, 0x1A, // Flags
             0x02, 0x0A, 0x0C, // TX Power = +12 dBm
-            0x07, 0xFF, 0x4C, 0x00, 0x10, 0x05, 0x11, 0x22, // Apple 0x004C sub-type 0x10 len 0x05
+            0x07, 0xFF, 0x4C, 0x00, 0x10, 0x05, 0x11,
+            0x22, // Apple 0x004C sub-type 0x10 len 0x05
         ];
         // 15 minutes later: phone rotates MAC and rotates Continuity random token bytes (0x99, 0xFE)
         let pdu_after: [u8; 14] = [
-            0x02, 0x01, 0x1A,
-            0x02, 0x0A, 0x0C,
-            0x07, 0xFF, 0x4C, 0x00, 0x10, 0x05, 0x99, 0xFE,
+            0x02, 0x01, 0x1A, 0x02, 0x0A, 0x0C, 0x07, 0xFF, 0x4C, 0x00, 0x10, 0x05, 0x99, 0xFE,
         ];
 
-        let fp1 = build_ble_fingerprint([0x5A, 0x12, 0x34, 0xAA, 0xBB, 0x01], &pdu_before, 102, [-48, -62, -55]);
-        let fp2 = build_ble_fingerprint([0x7E, 0x98, 0x11, 0xCC, 0xDD, 0x99], &pdu_after, 104, [-46, -60, -53]);
+        let fp1 = build_ble_fingerprint(
+            [0x5A, 0x12, 0x34, 0xAA, 0xBB, 0x01],
+            &pdu_before,
+            102,
+            [-48, -62, -55],
+        );
+        let fp2 = build_ble_fingerprint(
+            [0x7E, 0x98, 0x11, 0xCC, 0xDD, 0x99],
+            &pdu_after,
+            104,
+            [-46, -60, -53],
+        );
 
         assert_ne!(fp1.current_mac, fp2.current_mac);
-        assert_eq!(fp1.structural_hash, fp2.structural_hash, "Structural hash tracks same device across MAC rotation!");
+        assert_eq!(
+            fp1.structural_hash, fp2.structural_hash,
+            "Structural hash tracks same device across MAC rotation!"
+        );
         assert_eq!(fp1.company_id, 0x004C);
         assert!(!fp1.is_ble_spam);
     }

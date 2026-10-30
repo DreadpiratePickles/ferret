@@ -17,13 +17,13 @@ pub const WIFI_5GHZ_CHANNELS: [u8; 12] = [36, 40, 44, 48, 52, 56, 60, 64, 149, 1
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum C5RadioSchedule {
     /// Sweeps 5GHz + 2.4GHz + Zigbee Ch 15/20/25 with 40ms dwell; Bloom-filter deduplication.
-    DualBandSweep      = 0x01,
+    DualBandSweep = 0x01,
     /// Offloads 2.4GHz to S3 Sense; dedicates 100% radio time to 5GHz UNII-1 & UNII-3 channels.
-    Dedicated5GhzLock  = 0x02,
+    Dedicated5GhzLock = 0x02,
     /// Pins to a single 5GHz target channel (e.g. Ch 149) for zero-drop WPA2/WPA3 EAPOL & Deauth capture.
-    Surgical5GhzPin    = 0x03,
+    Surgical5GhzPin = 0x03,
     /// 802.15.4 Zigbee / Thread PAN Coordinator & Key-Transport Auditor.
-    ZigbeeThreadAudit  = 0x04,
+    ZigbeeThreadAudit = 0x04,
 }
 
 pub struct Esp32C5Node {
@@ -41,6 +41,12 @@ pub struct Esp32C5Node {
     pub eapol_5ghz_cnt: u8,
     pub zigbee_pan_fps: u8,
     pub peak_rssi: i8,
+}
+
+impl Default for Esp32C5Node {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Esp32C5Node {

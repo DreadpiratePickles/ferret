@@ -29,13 +29,13 @@ pub struct S3PsramPartition {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum S3SenseSubMode {
     /// 2.4GHz Ch 1/6/11 PCAP ring buffer (7.5MB PSRAM); Cam & Mic powered OFF.
-    DeepPcapBuffer       = 0x01,
+    DeepPcapBuffer = 0x01,
     /// Connects to a target BLE MAC flagged by the WROOM to enumerate GATT services/characteristics.
-    ActiveBleGattAudit   = 0x02,
+    ActiveBleGattAudit = 0x02,
     /// Powers on OV2640 Camera + PDM Mic when target RSSI > -45 dBm to correlate RF with physical presence.
-    CamAudioCorrelate    = 0x03,
+    CamAudioCorrelate = 0x03,
     /// Synchronized 3-node RSSI anchor lock.
-    TriangulateAnchorC   = 0x04,
+    TriangulateAnchorC = 0x04,
 }
 
 pub struct XiaoS3SenseNode {
@@ -52,6 +52,12 @@ pub struct XiaoS3SenseNode {
     pub ble_gatt_profiles_dumped: u8,
     pub snapshots_taken: u16,
     pub peak_rssi: i8,
+}
+
+impl Default for XiaoS3SenseNode {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl XiaoS3SenseNode {

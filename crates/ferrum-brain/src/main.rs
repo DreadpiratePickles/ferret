@@ -11,9 +11,7 @@ use ferrum_c5_scout::Esp32C5Node;
 use ferrum_deceive::{BleDecoyBeacon, DecoyKind, FakeSoftAp, TripwireEvent, TripwireKind};
 use ferrum_forensics::{verify_chain, HashChain, StoreForwardQueue};
 use ferrum_ids::{IdsEngine, Severity};
-use ferrum_proto::{
-    DualNrfPolicy, FerrumPolicyCmd, NodeId, NodeTelemetry, PolicyMode,
-};
+use ferrum_proto::{DualNrfPolicy, FerrumPolicyCmd, NodeId, NodeTelemetry, PolicyMode};
 use ferrum_s3_sense::XiaoS3SenseNode;
 use ferrum_secure::{OpenError, SecureChannel};
 use ferrum_triage::{channel_entropy_q, FeatureVector, RateWindow, RssiHistogram};
@@ -296,7 +294,9 @@ fn main() {
     ];
 
     for (idx, sc) in scenarios.iter().enumerate() {
-        println!("\n--------------------------------------------------------------------------------");
+        println!(
+            "\n--------------------------------------------------------------------------------"
+        );
         println!("[{}] {}", idx + 1, sc.name);
 
         // Update simulated RF stimuli on the 3 nodes
@@ -335,9 +335,21 @@ fn main() {
             policy_mode: decision.selected_policy as u8,
             dual_nrf_mode: decision.selected_nrf_policy as u8,
             pinned_channels: [wroom.last_hotspot_nrf_ch, 6, 149, 0],
-            dwell_time_ms: if decision.selected_policy == PolicyMode::SurgicalCapture { 500 } else { 35 },
-            cpu_freq_mhz: if decision.selected_policy == PolicyMode::WideRecon { 80 } else { 240 },
-            s3_psram_pcap_quota_kb: if decision.trigger_s3_camera_mic { 4096 } else { 7424 },
+            dwell_time_ms: if decision.selected_policy == PolicyMode::SurgicalCapture {
+                500
+            } else {
+                35
+            },
+            cpu_freq_mhz: if decision.selected_policy == PolicyMode::WideRecon {
+                80
+            } else {
+                240
+            },
+            s3_psram_pcap_quota_kb: if decision.trigger_s3_camera_mic {
+                4096
+            } else {
+                7424
+            },
             crc8: 0,
         };
 
@@ -380,19 +392,27 @@ fn main() {
     // ================================================================================
     // PHASE 2 — PILLARS: DETECT / DECEIVE / DEFEND / PROVE
     // ================================================================================
-    println!("\n\n################################################################################");
+    println!(
+        "\n\n################################################################################"
+    );
     println!("# PHASE 2: DETECT (ferrum-ids) | DECEIVE (ferrum-deceive)");
     println!("#          DEFEND (ferrum-secure) | PROVE (ferrum-forensics + ferrum-triage)");
     println!("################################################################################");
 
     // ---- Pillar 2: spin up the deception layer -------------------------------------
-    let mut decoy_ap = FakeSoftAp::new("Corp-Guest-IoT-Setup", 6, [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01]);
+    let mut decoy_ap = FakeSoftAp::new(
+        "Corp-Guest-IoT-Setup",
+        6,
+        [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01],
+    );
     let (beacon, beacon_len) = decoy_ap.build_beacon_frame();
     let ble_decoy = BleDecoyBeacon {
         kind: DecoyKind::IBeacon,
         canary_id: 0x0007,
         uuid: [0x11; 16],
-        major: 1, minor: 1, tx_power_dbm: -59,
+        major: 1,
+        minor: 1,
+        tx_power_dbm: -59,
     };
     let (_adv, adv_len) = ble_decoy.build_adv_payload();
     println!("\n[DECEIVE] Decoy AP 'Corp-Guest-IoT-Setup' beaconing on ch 6 ({}B frame); BLE iBeacon canary 0x0007 ({}B adv)",
@@ -401,24 +421,41 @@ fn main() {
 
     // Attacker takes the bait: association attempt against the decoy.
     let trip = TripwireEvent::new(
-        0x0007, TripwireKind::Association,
-        [0x64, 0xA2, 0x11, 0x09, 0xBC, 0x01], -38, 1_700_000_500, 0x01,
+        0x0007,
+        TripwireKind::Association,
+        [0x64, 0xA2, 0x11, 0x09, 0xBC, 0x01],
+        -38,
+        1_700_000_500,
+        0x01,
     );
 
     // ---- Pillar 1: IDS evaluation over the intruder tick + tripwire ----------------
     let ids = IdsEngine::default();
     let detections = ids.evaluate(&t_wroom, &t_c5, &t_s3, 4, &[trip]);
-    println!("\n[DETECT] ferrum-ids raised {} detection(s):", detections.len());
+    println!(
+        "\n[DETECT] ferrum-ids raised {} detection(s):",
+        detections.len()
+    );
     for d in &detections {
-        println!("  • [{}] {} ({}) — {} [MITRE {}] -> recommend {}",
-            d.severity.as_str(), d.title, d.rule_id, d.explanation, d.mitre,
-            d.recommended_policy.as_str());
+        println!(
+            "  • [{}] {} ({}) — {} [MITRE {}] -> recommend {}",
+            d.severity.as_str(),
+            d.title,
+            d.rule_id,
+            d.explanation,
+            d.mitre,
+            d.recommended_policy.as_str()
+        );
     }
 
     // ---- System-2 escalation --------------------------------------------------------
     let s2 = evaluate_laya_system2_decision(decision.clone(), &detections);
-    println!("\n[LAYA-S2] Escalated policy = [{}] ({}% conf) | {}",
-        s2.selected_policy.as_str(), s2.confidence_pct, s2.rationale);
+    println!(
+        "\n[LAYA-S2] Escalated policy = [{}] ({}% conf) | {}",
+        s2.selected_policy.as_str(),
+        s2.confidence_pct,
+        s2.rationale
+    );
 
     // ---- Pillar 3: authenticated command channel ------------------------------------
     let swarm_key = [0xFE; 32]; // provisioned at manufacturing; rotated per LoRa epoch
@@ -436,12 +473,17 @@ fn main() {
     };
     let frame = brain_ch.seal(&lockdown_cmd);
     match node_ch.open(&frame) {
-        Ok(cmd) => println!("\n[SECURE] Policy cmd sealed (seq {}) -> node opened OK, mode 0x{:02X}", frame.seq, cmd.policy_mode),
+        Ok(cmd) => println!(
+            "\n[SECURE] Policy cmd sealed (seq {}) -> node opened OK, mode 0x{:02X}",
+            frame.seq, cmd.policy_mode
+        ),
         Err(e) => println!("\n[SECURE] OPEN FAILED: {:?}", e),
     }
     match node_ch.open(&frame) {
         Ok(_) => println!("[SECURE] REPLAY ACCEPTED — BUG!"),
-        Err(OpenError::Replay) => println!("[SECURE] Replay of seq {} correctly rejected", frame.seq),
+        Err(OpenError::Replay) => {
+            println!("[SECURE] Replay of seq {} correctly rejected", frame.seq)
+        }
         Err(e) => println!("[SECURE] Unexpected error: {:?}", e),
     }
 
@@ -451,8 +493,18 @@ fn main() {
     let pcap_b = [0xBBu8; ferrum_forensics::EVIDENCE_BLOCK_BYTES];
     let h1 = chain.seal(&pcap_a, 1_700_000_500, PolicyMode::SurgicalCapture as u8);
     let h2 = chain.seal(&pcap_b, 1_700_000_560, s2.selected_policy as u8);
-    println!("\n[FORENSICS] Sealed 2 PCAP blocks: chain tip {:02X?}...", &chain.tip()[..4]);
-    println!("[FORENSICS] Chain verification: {}", if verify_chain(NodeId::XiaoS3Sense, &[h1, h2]) { "VALID — court-admissible" } else { "TAMPERED!" });
+    println!(
+        "\n[FORENSICS] Sealed 2 PCAP blocks: chain tip {:02X?}...",
+        &chain.tip()[..4]
+    );
+    println!(
+        "[FORENSICS] Chain verification: {}",
+        if verify_chain(NodeId::XiaoS3Sense, &[h1, h2]) {
+            "VALID — court-admissible"
+        } else {
+            "TAMPERED!"
+        }
+    );
 
     // ---- Pillar 3/4: MESH_SURVIVE — compressed triage features over LoRa ------------
     let mut hist = RssiHistogram::new();
@@ -464,14 +516,20 @@ fn main() {
         mgmt.event();
         occupancy[6] += 1;
     }
-    for _ in 0..(t_c5.deauth_disassoc_cnt.min(200)) { deauth.event(); }
+    for _ in 0..(t_c5.deauth_disassoc_cnt.min(200)) {
+        deauth.event();
+    }
     let fv = FeatureVector {
         mean_rssi_q: hist.mean_q(),
         rssi_std_q: hist.stdev_q(),
         mgmt_rate_q: mgmt.avg_per_sec_q(),
         deauth_rate_q: deauth.avg_per_sec_q(),
         entropy_q: channel_entropy_q(&occupancy),
-        alarm_flags: if t_c5.deauth_disassoc_cnt > 40 { ferrum_triage::flags::DEAUTH_FLOOD } else { 0 },
+        alarm_flags: if t_c5.deauth_disassoc_cnt > 40 {
+            ferrum_triage::flags::DEAUTH_FLOOD
+        } else {
+            0
+        },
         node_id: NodeId::Esp32C5Scout as u8,
         crc8: 0,
     };
@@ -480,14 +538,33 @@ fn main() {
     println!("\n[MESH_SURVIVE] FeatureVector {}B (mean {} qdBm, deauth_rate_q {}) queued for LoRa SX1262",
         FeatureVector::SIZE, fv.mean_rssi_q, fv.deauth_rate_q);
     let mut drained = 0;
-    while let Some(_b) = lora_q.pop() { drained += 1; }
-    println!("[MESH_SURVIVE] Drained {} feature frame(s) over out-of-band link (dropped={})", drained, lora_q.dropped);
+    while let Some(_b) = lora_q.pop() {
+        drained += 1;
+    }
+    println!(
+        "[MESH_SURVIVE] Drained {} feature frame(s) over out-of-band link (dropped={})",
+        drained, lora_q.dropped
+    );
 
     // Verify BLE MAC rotation de-anonymization across two rotating MACs
-    let pdu_1 = [0x02, 0x01, 0x1A, 0x02, 0x0A, 0x0C, 0x07, 0xFF, 0x4C, 0x00, 0x10, 0x05, 0x41, 0x89];
-    let pdu_2 = [0x02, 0x01, 0x1A, 0x02, 0x0A, 0x0C, 0x07, 0xFF, 0x4C, 0x00, 0x10, 0x05, 0xFA, 0x03];
-    let fp1 = build_ble_fingerprint([0x64, 0xA2, 0x11, 0x09, 0xBC, 0x01], &pdu_1, 100, [-42, -58, -36]);
-    let fp2 = build_ble_fingerprint([0x51, 0xF9, 0x88, 0x3C, 0x10, 0xFE], &pdu_2, 103, [-40, -56, -35]);
+    let pdu_1 = [
+        0x02, 0x01, 0x1A, 0x02, 0x0A, 0x0C, 0x07, 0xFF, 0x4C, 0x00, 0x10, 0x05, 0x41, 0x89,
+    ];
+    let pdu_2 = [
+        0x02, 0x01, 0x1A, 0x02, 0x0A, 0x0C, 0x07, 0xFF, 0x4C, 0x00, 0x10, 0x05, 0xFA, 0x03,
+    ];
+    let fp1 = build_ble_fingerprint(
+        [0x64, 0xA2, 0x11, 0x09, 0xBC, 0x01],
+        &pdu_1,
+        100,
+        [-42, -58, -36],
+    );
+    let fp2 = build_ble_fingerprint(
+        [0x51, 0xF9, 0x88, 0x3C, 0x10, 0xFE],
+        &pdu_2,
+        103,
+        [-40, -56, -35],
+    );
     println!("\n--------------------------------------------------------------------------------");
     println!(
         "[BLE De-Anonymizer] Rotating MAC {:02X?} -> {:02X?} matched to SAME physical identity hash: 0x{:08X}",
