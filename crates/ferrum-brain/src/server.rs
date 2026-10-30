@@ -41,8 +41,7 @@ const DASHBOARD_HTML: &str = include_str!("../../../dashboard/ferrum_cyberswarm_
 struct AppState {
     /// Latest snapshot published by the tick thread.
     snapshots: watch::Receiver<Option<SwarmSnapshot>>,
-    /// Inbound operator commands for the tick thread (populated by the WS handler in Task 11).
-    #[allow(dead_code)]
+    /// Inbound operator commands for the tick thread (fed by each client's WS handler).
     commands: mpsc::Sender<OperatorCommand>,
 }
 
@@ -90,7 +89,8 @@ async fn ws_upgrade(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl
     ws.on_upgrade(move |socket| client_loop(socket, state))
 }
 
-/// Per-client loop: forward each new snapshot until the client goes away.
+/// Per-client loop: forward each new snapshot out and each inbound text frame (parsed as an
+/// [`OperatorCommand`]) to the tick thread, until the client goes away.
 async fn client_loop(socket: WebSocket, state: AppState) {
     let (mut tx, mut rx) = socket.split();
     let mut snapshots = state.snapshots.clone();
@@ -117,8 +117,18 @@ async fn client_loop(socket: WebSocket, state: AppState) {
                 }
             }
             incoming = rx.next() => match incoming {
-                // Inbound operator commands are wired up in Task 11; ignore other frames.
                 Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
+                Some(Ok(Message::Text(text))) => {
+                    match serde_json::from_str::<OperatorCommand>(&text) {
+                        Ok(cmd) => {
+                            if state.commands.send(cmd).is_err() {
+                                break; // tick thread gone
+                            }
+                        }
+                        Err(e) => tracing::warn!("ignoring malformed operator command: {e}"),
+                    }
+                }
+                // Binary / ping / pong frames carry no commands (axum answers pings itself).
                 Some(Ok(_)) => {}
             },
         }
@@ -205,10 +215,13 @@ mod tests {
     use tokio_tungstenite::connect_async;
 
     async fn start(tick_hz: u8) -> SocketAddr {
+        start_scenario("red-team-incursion", tick_hz).await
+    }
+
+    async fn start_scenario(scenario: &'static str, tick_hz: u8) -> SocketAddr {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        let swarm =
-            spawn_tick_thread(|| Orchestrator::new(42, "red-team-incursion"), tick_hz).unwrap();
+        let swarm = spawn_tick_thread(move || Orchestrator::new(42, scenario), tick_hz).unwrap();
         tokio::spawn(async move {
             let _ = serve_listener(listener, swarm).await;
         });
@@ -284,5 +297,121 @@ mod tests {
         );
         assert!(resp.to_lowercase().contains("content-type: text/html"));
         assert!(resp.to_lowercase().contains("ferrum"));
+    }
+
+    async fn send_text<S>(ws: &mut S, text: &str)
+    where
+        S: futures_util::Sink<tokio_tungstenite::tungstenite::Message> + Unpin,
+        S::Error: std::fmt::Debug,
+    {
+        ws.send(tokio_tungstenite::tungstenite::Message::Text(text.into()))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_inject_adversary_changes_stream() {
+        // Quiet scenario: no adversary of its own, so anything jam-related can only come from
+        // the injected command.
+        let addr = start_scenario("quiet", 50).await;
+        let (mut ws, _) = connect_async(format!("ws://{addr}/ws")).await.unwrap();
+
+        // Baseline: calm decision, no jam detection, no adversary.
+        let mut baseline_policy = String::new();
+        for _ in 0..5 {
+            let s = next_json(&mut ws).await;
+            assert!(s["scenario"]["active_adversaries"]
+                .as_array()
+                .unwrap()
+                .is_empty());
+            assert!(!has_jam_detection(&s), "jam detection before any injection");
+            baseline_policy = s["decision"]["selected_policy"]
+                .as_str()
+                .unwrap()
+                .to_string();
+        }
+
+        send_text(&mut ws, r#"{"InjectAdversary":"jammer"}"#).await;
+
+        // The jammer shows up as active, the IDS flags Layer-1 jamming recommending
+        // FLOOD_JAM_SURVIVAL, and the live decision moves off the baseline. (System-2 may then
+        // escalate past FLOOD_JAM_SURVIVAL, because the jammer's carrier also trips the decoy
+        // honeypot and lockdown outranks it, so the recommendation is asserted on the detection.)
+        let (mut saw_adversary, mut saw_jam, mut moved) = (false, false, false);
+        for _ in 0..300 {
+            let s = next_json(&mut ws).await;
+            saw_adversary |= s["scenario"]["active_adversaries"]
+                .as_array()
+                .is_some_and(|a| a.iter().any(|x| x["name"] == "jammer"));
+            saw_jam |= has_jam_detection(&s);
+            moved |= s["decision"]["selected_policy"] != baseline_policy.as_str();
+            if saw_adversary && saw_jam && moved {
+                break;
+            }
+        }
+        assert!(saw_adversary, "injected jammer never appeared as active");
+        assert!(
+            saw_jam,
+            "no FR-JAM-001 / FLOOD_JAM_SURVIVAL detection after injection"
+        );
+        assert!(moved, "decision never moved off baseline {baseline_policy}");
+    }
+
+    /// True when the snapshot carries the Layer-1 jammer detection recommending jam survival.
+    fn has_jam_detection(s: &serde_json::Value) -> bool {
+        s["detections"].as_array().is_some_and(|d| {
+            d.iter().any(|x| {
+                x["rule_id"] == "FR-JAM-001" && x["recommended_policy"] == "FLOOD_JAM_SURVIVAL"
+            })
+        })
+    }
+
+    #[tokio::test]
+    async fn test_force_policy_flows_through_secure() {
+        let addr = start_scenario("quiet", 50).await;
+        let (mut ws, _) = connect_async(format!("ws://{addr}/ws")).await.unwrap();
+
+        let before = next_json(&mut ws).await;
+        assert_ne!(before["decision"]["selected_policy"], "FORENSIC_LOCKDOWN");
+        let sealed0 = before["secure"]["frames_sealed"].as_u64().unwrap();
+        let accepted0 = before["secure"]["frames_accepted"].as_u64().unwrap();
+
+        send_text(&mut ws, r#"{"ForcePolicy":9}"#).await;
+
+        let mut forced = None;
+        for _ in 0..300 {
+            let s = next_json(&mut ws).await;
+            if s["decision"]["selected_policy"] == "FORENSIC_LOCKDOWN" {
+                forced = Some(s);
+                break;
+            }
+        }
+        let forced = forced.expect("forced policy never appeared in the stream");
+        // Let a few more ticks run so the sealed-command path demonstrably keeps advancing.
+        let mut last = forced;
+        for _ in 0..5 {
+            last = next_json(&mut ws).await;
+            assert_eq!(last["decision"]["selected_policy"], "FORENSIC_LOCKDOWN");
+        }
+        let sealed1 = last["secure"]["frames_sealed"].as_u64().unwrap();
+        let accepted1 = last["secure"]["frames_accepted"].as_u64().unwrap();
+        assert!(sealed1 > sealed0, "frames_sealed did not advance");
+        assert!(accepted1 > accepted0, "frames_accepted did not advance");
+        assert_eq!(last["secure"]["rejected_bad_mac"], 0);
+        assert_eq!(last["secure"]["rejected_replay"], 0);
+    }
+
+    #[tokio::test]
+    async fn test_malformed_inbound_is_ignored() {
+        let addr = start_scenario("quiet", 50).await;
+        let (mut ws, _) = connect_async(format!("ws://{addr}/ws")).await.unwrap();
+        let t0 = next_json(&mut ws).await["tick"].as_u64().unwrap();
+        send_text(&mut ws, "not json at all").await;
+        send_text(&mut ws, r#"{"Bogus":1}"#).await;
+        let mut last = t0;
+        for _ in 0..10 {
+            last = next_json(&mut ws).await["tick"].as_u64().unwrap();
+        }
+        assert!(last > t0, "connection stalled after malformed input");
     }
 }
