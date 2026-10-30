@@ -91,7 +91,7 @@
     .adv-tag button:hover { background: var(--rose); color: #fff; border-color: var(--rose); }
 
     /* ---- grid ---- */
-    .grid-top { display: grid; grid-template-columns: 1.35fr 1fr; gap: 12px; }
+    .grid-top { display: grid; grid-template-columns: 1.35fr 1fr; gap: 12px; align-items: start; }
     .grid-nodes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
     .grid-bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     @media (max-width: 1080px) { .grid-top, .grid-bottom { grid-template-columns: 1fr; } .grid-nodes { grid-template-columns: 1fr; } }
@@ -116,6 +116,9 @@
 
     /* ---- canvases ---- */
     canvas { display: block; width: 100%; border-radius: 10px; background: #060a11; border: 1px solid var(--border); }
+    #waterfall { height: 220px; }
+    /* Radar: constrain to the sensor-triangle aspect so it never balloons; rings stay circular (uniform scale in JS). */
+    #radar { aspect-ratio: 9 / 8; height: auto; max-height: 440px; }
     .spectrum-legend { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 6px; }
     .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 4px; }
     .scale { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9.5px; color: var(--dim); margin-top: 3px; }
@@ -285,12 +288,12 @@
             <div><div class="lbl">Node 1 · WROOM Dual nRF24L01+ · Live RF Waterfall</div><div class="h2">2.4 GHz 126-Ch RPD + 5 GHz Wi-Fi</div></div>
             <span id="ghostBadge" class="pill mono">GHOST BAND: quiet</span>
           </div>
-          <canvas id="waterfall" width="720" height="200"></canvas>
+          <canvas id="waterfall"></canvas>
           <div class="scale"><span>2400</span><span>2426</span><span>2450</span><span>2480</span><span class="mono" style="color:var(--rose)">2485–2525 (Ghost)</span></div>
           <div class="spectrum-legend">
-            <span><i class="swatch" style="background:#0ea5e9"></i>nRF active (2.4 GHz)</span>
-            <span><i class="swatch" style="background:#f43f5e"></i>Ghost band</span>
-            <span><i class="swatch" style="background:#f59e0b"></i>Wi-Fi 5 GHz</span>
+            <span><i class="swatch" style="background:#17c3ec"></i>nRF active (2.4 GHz)</span>
+            <span><i class="swatch" style="background:#fb3b57"></i>Ghost band</span>
+            <span><i class="swatch" style="background:#f59e0b"></i>Wi-Fi (2.4 &amp; 5 GHz)</span>
             <span id="subghzNote" class="mono" style="color:var(--dim)">Sub-GHz: quiet</span>
           </div>
         </div>
@@ -302,7 +305,7 @@
           <div><div class="lbl">3-Anchor RSSI Trilateration</div><div class="h2">Physical Perimeter Radar</div></div>
           <span id="radarBadge" class="pill mono">NO TARGET</span>
         </div>
-        <canvas id="radar" width="440" height="400" style="flex:1"></canvas>
+        <canvas id="radar"></canvas>
         <div class="stat-grid" style="margin-top:10px">
           <div class="stat"><div class="sv" id="dist0" style="color:var(--sky)">— m</div><div class="sk">WROOM dist</div></div>
           <div class="stat"><div class="sv" id="dist1" style="color:var(--amber)">— m</div><div class="sk">C5 dist</div></div>
@@ -399,7 +402,7 @@
             <div class="stat"><div class="sv" id="sec-epoch" style="color:var(--sky)">0</div><div class="sk">secure epoch</div></div>
             <div class="stat"><div class="sv" id="lora-depth" style="color:var(--amber)">0</div><div class="sk">LoRa queue</div></div>
           </div>
-          <div class="kv" style="margin-top:8px"><span class="k">Chain tip</span><span class="chain-tip" id="fx-tip">—</span></div>
+          <div class="kv" style="margin-top:8px"><span class="k">Chain tip · seq <span id="fx-seq" class="mono" style="color:var(--amber)">—</span></span><span class="chain-tip" id="fx-tip">—</span></div>
           <div class="stat-grid" style="margin-top:8px">
             <div class="stat"><div class="sv" id="sec-sealed" style="font-size:14px">0</div><div class="sk">frames sealed</div></div>
             <div class="stat"><div class="sv" id="sec-accepted" style="font-size:14px">0</div><div class="sk">accepted</div></div>
@@ -447,7 +450,8 @@ function setStatus(state, msg) {
 }
 
 function connect() {
-  const url = `ws://${location.host}/ws`;
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const url = `${proto}://${location.host}/ws`;
   setStatus("connecting", `connecting to ${url} …`);
   try { ws = new WebSocket(url); } catch (e) { scheduleReconnect(); return; }
 
@@ -458,7 +462,7 @@ function connect() {
   ws.onmessage = (ev) => {
     let snap; try { snap = JSON.parse(ev.data); } catch (e) { return; }
     latest = snap;
-    try { render(snap); } catch (e) { console.error("render error", e); }
+    render(snap);
   };
   ws.onclose = () => { connected = false; setStatus("down", "disconnected — reconnecting…"); scheduleReconnect(); };
   ws.onerror = () => { try { ws.close(); } catch (e) {} };
@@ -481,19 +485,23 @@ let paused = false;
 function togglePause() { sendCmd(paused ? "Resume" : "Pause"); }
 
 /* ============================================================
-   Rendering
+   Rendering — each panel is isolated so one bad/missing field
+   degrades only that panel, never the whole dashboard.
    ============================================================ */
+function safe(name, fn) {
+  try { fn(); } catch (e) { console.error(name + " render error", e); }
+}
 function render(s) {
-  renderHeader(s);
-  renderDecision(s.decision);
-  renderPillars(s.pillars);
-  renderNodes(s.nodes);
-  renderForensics(s);
-  renderDetections(s.detections);
-  renderEvents(s.events);
-  // waterfall row + radar target are consumed by the animation loop
-  pushWaterfall(s.spectrum);
-  updateRadarTarget(s.radar);
+  safe("header", () => renderHeader(s));
+  safe("decision", () => renderDecision(s.decision));
+  safe("pillars", () => renderPillars(s.pillars));
+  safe("nodes", () => renderNodes(s.nodes));
+  safe("forensics", () => renderForensics(s));
+  safe("detections", () => renderDetections(s.detections));
+  safe("events", () => renderEvents(s.events));
+  // waterfall row is pushed per snapshot; radar target is consumed by the RAF loop
+  safe("waterfall", () => pushWaterfall(s.spectrum));
+  safe("radar", () => updateRadarTarget(s.radar));
 }
 
 function renderHeader(s) {
@@ -523,12 +531,6 @@ function renderHeader(s) {
   }
 }
 
-const POLICY_SHORT = {
-  WIDE_RECON:"WIDE_RECON", ANOMALY_TRIAGE:"ANOMALY_TRIAGE", SURGICAL_CAPTURE:"SURGICAL_CAPTURE",
-  FLOOD_JAM_SURVIVAL:"FLOOD_JAM_SURVIVAL", TRIANGULATE_LOCK:"TRIANGULATE_LOCK",
-  SENTINEL_CORRELATE:"SENTINEL_CORRELATE", IDS_ENFORCE:"IDS_ENFORCE", HONEYPOT_LURE:"HONEYPOT_LURE",
-  FORENSIC_LOCKDOWN:"FORENSIC_LOCKDOWN", MESH_SURVIVE:"MESH_SURVIVE"
-};
 const DEFENSIVE = new Set(["FLOOD_JAM_SURVIVAL","IDS_ENFORCE","FORENSIC_LOCKDOWN","MESH_SURVIVE"]);
 
 function renderDecision(d) {
@@ -541,8 +543,12 @@ function renderDecision(d) {
   $("coopSplit").textContent = d.cooperative_band_split ? "· cooperative band-split ON" : "";
 
   const sb = $("srcBadge");
-  if (d.escalated) { sb.textContent = "SYSTEM-2 ESCALATED"; sb.className = "srcbadge esc"; }
-  else { sb.textContent = (d.source || "system1").toUpperCase(); sb.className = "srcbadge"; }
+  if (d.escalated) {
+    sb.textContent = "SYSTEM-2 ESCALATED"; sb.className = "srcbadge esc";
+  } else {
+    sb.textContent = (d.source === "system2") ? "SYSTEM-2" : "SYSTEM-1";
+    sb.className = "srcbadge";
+  }
 
   // distribution bars (6 policies)
   const dist = d.distribution || [];
@@ -634,6 +640,8 @@ function renderForensics(s) {
   const fx = s.forensics || {}, sec = s.secure || {};
   $("fx-sealed").textContent = fx.sealed_records || 0;
   $("fx-tip").textContent = fx.chain_tip ? fx.chain_tip.slice(0, 24) + "…" : "— (no seal yet)";
+  const rec = fx.recent || [];
+  $("fx-seq").textContent = rec.length ? rec[rec.length - 1].seq : "—";
   const chip = $("chainChip");
   if (!fx.chain_tip) { chip.textContent = "NO CHAIN"; chip.className = "chip valid"; chip.style.opacity = .5; }
   else { chip.style.opacity = 1; chip.textContent = fx.chain_valid ? "CHAIN VALID" : "CHAIN TAMPERED"; chip.className = "chip " + (fx.chain_valid ? "valid" : "invalid"); }
@@ -650,7 +658,7 @@ function renderDetections(dets) {
   box.innerHTML = dets.map(d =>
     `<div class="det r${d.severity_rank}">
       <div class="dt">${d.title}<span class="sev sev-${d.severity_rank}">${d.severity}</span></div>
-      <div class="de">${d.explanation}</div>
+      <div class="de">${escapeHtml(d.explanation)}</div>
       <div class="dm">${d.mitre} · ${d.rule_id} → ${d.recommended_policy}</div>
     </div>`).join("");
 }
@@ -670,62 +678,75 @@ function renderEvents(evs) {
 function escapeHtml(s){ return String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 
 /* ============================================================
-   Spectrum waterfall (scrolling canvas)
+   Canvas sizing — render at true displayed size × devicePixelRatio
+   so output is crisp, and derive all geometry from real pixels.
+   ============================================================ */
+const dpr = () => Math.max(1, window.devicePixelRatio || 1);
+function fitCanvas(cv) {
+  const r = dpr();
+  const w = Math.max(1, Math.round(cv.clientWidth * r));
+  const h = Math.max(1, Math.round(cv.clientHeight * r));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; return true; }
+  return false;
+}
+
+/* ============================================================
+   Spectrum waterfall (scrolling, device-pixel space)
    ============================================================ */
 const wf = $("waterfall");
-const wfx = wf.getContext("2d");
-const WF_W = wf.width, WF_H = wf.height;
-const NRF_H = Math.floor(WF_H * 0.68);   // 2.4 GHz band height
-const WIFI_Y = NRF_H + 2;
-const WIFI_H = WF_H - WIFI_Y;
-let wfReady = false;
-function initWaterfall() {
-  wfx.fillStyle = "#060a11"; wfx.fillRect(0, 0, WF_W, WF_H);
-  wfReady = true;
-}
-initWaterfall();
-
-// 5GHz channel domain (UNII): map 36..165 across width
-function wifi5X(ch) { return clamp((ch - 36) / (165 - 36), 0, 1) * WF_W; }
+const wfx = wf.getContext("2d", { willReadFrequently: true });
+let wfInit = false;
+function wfClear() { wfx.fillStyle = "#060a11"; wfx.fillRect(0, 0, wf.width, wf.height); wfInit = true; }
+// 2.4 GHz Wi-Fi channel -> centre freq (MHz); the nRF band spans 2400..2525 MHz across the width.
+function wifi24Freq(ch) { return 2412 + (ch - 1) * 5; }
 
 function pushWaterfall(spec) {
   if (!spec) return;
-  // scroll the nRF region up by 1px
-  const img = wfx.getImageData(0, 1, WF_W, NRF_H - 1);
-  wfx.putImageData(img, 0, 0);
-  // draw newest nRF row at bottom of the nRF region
+  const resized = fitCanvas(wf);
+  const W = wf.width, H = wf.height, r = dpr();
+  const NRF_H = Math.floor(H * 0.68);
+  const WIFI_Y = NRF_H + Math.max(1, Math.round(H * 0.01));
+  const WIFI_H = H - WIFI_Y;
+  if (resized || !wfInit) wfClear();
+
+  // scroll the nRF (2.4 GHz) region up by 1 device px
+  if (NRF_H > 2) {
+    const img = wfx.getImageData(0, 1, W, NRF_H - 1);
+    wfx.putImageData(img, 0, 0);
+  }
   const y = NRF_H - 1;
   const nrf = spec.nrf_active || [];
-  const colW = WF_W / 126;
-  // base dim background row
-  wfx.fillStyle = "#070c15"; wfx.fillRect(0, y, WF_W, 1);
+  const colW = W / 126;
+  wfx.fillStyle = "#070c15"; wfx.fillRect(0, y, W, 1);
   for (let ch = 0; ch < 126; ch++) {
     const ghost = ch >= 85;
     const active = nrf[ch];
-    let color;
-    if (active) color = ghost ? "#fb3b57" : "#17c3ec";
-    else color = ghost ? "rgba(244,63,94,0.10)" : "rgba(14,165,233,0.05)";
-    wfx.fillStyle = color;
+    wfx.fillStyle = active ? (ghost ? "#fb3b57" : "#17c3ec")
+                           : (ghost ? "rgba(244,63,94,0.10)" : "rgba(14,165,233,0.05)");
     wfx.fillRect(ch * colW, y, Math.max(1, colW), 1);
   }
+  // 2.4 GHz Wi-Fi markers on the newest nRF row (scroll up into history, amber like 5 GHz)
+  for (const [ch, rssi] of (spec.wifi24 || [])) {
+    const x = ((wifi24Freq(ch) - 2400) / 126) * W;
+    const strength = clamp((rssi + 95) / 60, 0.1, 1);
+    wfx.fillStyle = `rgba(245,158,11,${0.5 + strength * 0.5})`;
+    wfx.fillRect(x - 2 * r, y, 4 * r, 1);
+  }
 
-  // 5GHz strip: full repaint each tick (fewer channels, shows live bars + short history fade)
-  // fade existing
+  // 5 GHz Wi-Fi strip (repaint + fade each tick)
   wfx.fillStyle = "rgba(6,10,17,0.28)";
-  wfx.fillRect(0, WIFI_Y, WF_W, WIFI_H);
-  const w5 = spec.wifi5 || [];
-  for (const [ch, rssi] of w5) {
-    const x = wifi5X(ch);
-    const strength = clamp((rssi + 95) / 60, 0.05, 1); // -95..-35 -> 0..1
+  wfx.fillRect(0, WIFI_Y, W, WIFI_H);
+  for (const [ch, rssi] of (spec.wifi5 || [])) {
+    const x = clamp((ch - 36) / (165 - 36), 0, 1) * W;
+    const strength = clamp((rssi + 95) / 60, 0.05, 1);
     const bh = strength * WIFI_H;
     wfx.fillStyle = `rgba(245,158,11,${0.35 + strength * 0.6})`;
-    wfx.fillRect(x - 3, WIFI_Y + (WIFI_H - bh), 6, bh);
+    wfx.fillRect(x - 3 * r, WIFI_Y + (WIFI_H - bh), 6 * r, bh);
   }
-  // separator line
+  // band separator
   wfx.fillStyle = "rgba(148,163,184,0.18)";
-  wfx.fillRect(0, NRF_H, WF_W, 1);
+  wfx.fillRect(0, NRF_H, W, 1);
 
-  // ghost band badge + subghz note
   const gb = spec.ghost_band_active || 0;
   const gbBadge = $("ghostBadge");
   gbBadge.textContent = gb > 0 ? `GHOST BAND: ${gb} ch ACTIVE` : "GHOST BAND: quiet";
@@ -736,20 +757,22 @@ function pushWaterfall(spec) {
 }
 
 /* ============================================================
-   Trilateration radar (animated)
+   Trilateration radar (animated; uniform metre->px scale so rings
+   stay circular on any canvas aspect; crisp via DPR transform)
    ============================================================ */
 const rc = $("radar");
 const rx = rc.getContext("2d");
-const RW = rc.width, RH = rc.height;
+const DOMX = [-0.6, 6.6], DOMY = [-0.6, 5.8];   // metres, padded around the anchors
+const R_PAD = 26;                                // CSS px margin inside the canvas
 let radarData = { has_target: false, anchors: [[0,0],[6,0],[3,5.2]], dists: [0,0,0] };
-let shownTarget = { x: 3, y: 2.6 };   // smoothed display position
-let targetTarget = { x: 3, y: 2.6 };  // snapshot position
+let shownTarget = { x: 3, y: 2.6 };              // smoothed display position
+let targetTarget = { x: 3, y: 2.6 };             // latest snapshot position
 let hasTarget = false, pulseT = 0;
-
-// metres -> canvas, domain padded around anchors
-const DOMX = [-0.6, 6.6], DOMY = [-0.6, 5.8];
-const mX = (m) => ((m - DOMX[0]) / (DOMX[1] - DOMX[0])) * (RW - 50) + 25;
-const mY = (m) => ((m - DOMY[0]) / (DOMY[1] - DOMY[0])) * (RH - 50) + 25;
+const ANCHOR_META = [
+  { name: "WROOM", color: "#0ea5e9" },
+  { name: "C5",    color: "#f59e0b" },
+  { name: "S3",    color: "#10b981" },
+];
 
 function updateRadarTarget(r) {
   if (!r) return;
@@ -766,61 +789,64 @@ function updateRadarTarget(r) {
   $("dist2").textContent = hasTarget ? d[2].toFixed(2) + " m" : "— m";
 }
 
-const ANCHOR_META = [
-  { name: "WROOM", color: "#0ea5e9" },
-  { name: "C5",    color: "#f59e0b" },
-  { name: "S3",    color: "#10b981" },
-];
-
 function drawRadar() {
-  rx.clearRect(0, 0, RW, RH);
-  // grid
-  rx.strokeStyle = "rgba(148,163,184,0.10)"; rx.lineWidth = 1;
-  for (let gx = 0; gx <= 6; gx++) { const x = mX(gx); rx.beginPath(); rx.moveTo(x, mY(DOMY[0])); rx.lineTo(x, mY(DOMY[1])); rx.stroke(); }
-  for (let gy = 0; gy <= 5; gy++) { const y = mY(gy); rx.beginPath(); rx.moveTo(mX(DOMX[0]), y); rx.lineTo(mX(DOMX[1]), y); rx.stroke(); }
+  try {
+    fitCanvas(rc);
+    const r = dpr();
+    const W = rc.clientWidth, H = rc.clientHeight;   // work in CSS px
+    rx.setTransform(r, 0, 0, r, 0, 0);
+    rx.clearRect(0, 0, W, H);
 
-  // smooth target toward snapshot
-  shownTarget.x += (targetTarget.x - shownTarget.x) * 0.18;
-  shownTarget.y += (targetTarget.y - shownTarget.y) * 0.18;
-  const tx = mX(shownTarget.x), ty = mY(shownTarget.y);
+    // uniform scale (equal x/y) keeps rings circular regardless of canvas aspect
+    const domW = DOMX[1] - DOMX[0], domH = DOMY[1] - DOMY[0];
+    const scale = Math.min((W - 2 * R_PAD) / domW, (H - 2 * R_PAD) / domH);
+    const offX = (W - domW * scale) / 2, offY = (H - domH * scale) / 2;
+    const mX = (m) => offX + (m - DOMX[0]) * scale;
+    const mY = (m) => offY + (m - DOMY[0]) * scale;
 
-  // anchors + distance rings
-  radarData.anchors.forEach((a, i) => {
-    const ax = mX(a[0]), ay = mY(a[1]);
-    const meta = ANCHOR_META[i] || { name: "?", color: "#94a3b8" };
+    // grid
+    rx.strokeStyle = "rgba(148,163,184,0.10)"; rx.lineWidth = 1;
+    for (let gx = 0; gx <= 6; gx++) { const x = mX(gx); rx.beginPath(); rx.moveTo(x, mY(DOMY[0])); rx.lineTo(x, mY(DOMY[1])); rx.stroke(); }
+    for (let gy = 0; gy <= 5; gy++) { const yy = mY(gy); rx.beginPath(); rx.moveTo(mX(DOMX[0]), yy); rx.lineTo(mX(DOMX[1]), yy); rx.stroke(); }
+
+    // smooth the target toward the latest snapshot position
+    shownTarget.x += (targetTarget.x - shownTarget.x) * 0.18;
+    shownTarget.y += (targetTarget.y - shownTarget.y) * 0.18;
+    const tx = mX(shownTarget.x), ty = mY(shownTarget.y);
+
+    // anchors + distance rings + bearing lines
+    radarData.anchors.forEach((a, i) => {
+      const ax = mX(a[0]), ay = mY(a[1]);
+      const meta = ANCHOR_META[i] || { name: "?", color: "#94a3b8" };
+      if (hasTarget) {
+        const rr = radarData.dists[i] * scale;
+        rx.strokeStyle = meta.color + "40"; rx.lineWidth = 1.4;
+        rx.beginPath(); rx.arc(ax, ay, rr, 0, Math.PI * 2); rx.stroke();
+        rx.strokeStyle = meta.color + "66"; rx.setLineDash([4, 4]);
+        rx.beginPath(); rx.moveTo(ax, ay); rx.lineTo(tx, ty); rx.stroke(); rx.setLineDash([]);
+      }
+      rx.fillStyle = meta.color;
+      rx.beginPath(); rx.arc(ax, ay, 6, 0, Math.PI * 2); rx.fill();
+      rx.strokeStyle = meta.color + "55"; rx.lineWidth = 2;
+      rx.beginPath(); rx.arc(ax, ay, 9, 0, Math.PI * 2); rx.stroke();
+      rx.font = "bold 11px ui-monospace, monospace"; rx.fillStyle = meta.color; rx.textAlign = "center";
+      rx.fillText(meta.name, ax, ay < H / 2 ? ay - 14 : ay + 22);
+    });
+
+    // target
     if (hasTarget) {
-      // range ring sized by trilateration distance (metres -> px scale from x axis)
-      const scale = (RW - 50) / (DOMX[1] - DOMX[0]);
-      const r = radarData.dists[i] * scale;
-      rx.strokeStyle = meta.color + "40"; rx.lineWidth = 1.4;
-      rx.beginPath(); rx.arc(ax, ay, r, 0, Math.PI * 2); rx.stroke();
-      // bearing line
-      rx.strokeStyle = meta.color + "66"; rx.setLineDash([4, 4]);
-      rx.beginPath(); rx.moveTo(ax, ay); rx.lineTo(tx, ty); rx.stroke(); rx.setLineDash([]);
+      pulseT += 0.08;
+      const pr = 8 + (Math.sin(pulseT) + 1) * 7;
+      rx.fillStyle = "rgba(244,63,94,0.18)";
+      rx.beginPath(); rx.arc(tx, ty, pr, 0, Math.PI * 2); rx.fill();
+      rx.fillStyle = "#f43f5e";
+      rx.beginPath(); rx.arc(tx, ty, 6, 0, Math.PI * 2); rx.fill();
+      rx.strokeStyle = "rgba(244,63,94,0.9)"; rx.lineWidth = 1.5;
+      rx.beginPath(); rx.moveTo(tx - 13, ty); rx.lineTo(tx + 13, ty); rx.moveTo(tx, ty - 13); rx.lineTo(tx, ty + 13); rx.stroke();
+      rx.font = "bold 11px ui-monospace, monospace"; rx.fillStyle = "#fda4af"; rx.textAlign = "left";
+      rx.fillText(`(${shownTarget.x.toFixed(1)}, ${shownTarget.y.toFixed(1)}) m`, clamp(tx + 14, 6, W - 96), clamp(ty - 10, 14, H - 6));
     }
-    // anchor node
-    rx.fillStyle = meta.color;
-    rx.beginPath(); rx.arc(ax, ay, 6, 0, Math.PI * 2); rx.fill();
-    rx.strokeStyle = meta.color + "55"; rx.lineWidth = 2;
-    rx.beginPath(); rx.arc(ax, ay, 9, 0, Math.PI * 2); rx.stroke();
-    rx.font = "bold 11px ui-monospace, monospace"; rx.fillStyle = meta.color;
-    rx.textAlign = "center";
-    rx.fillText(meta.name, ax, ay < RH / 2 ? ay - 14 : ay + 22);
-  });
-
-  // target
-  if (hasTarget) {
-    pulseT += 0.08;
-    const pr = 8 + (Math.sin(pulseT) + 1) * 7;
-    rx.fillStyle = "rgba(244,63,94,0.18)";
-    rx.beginPath(); rx.arc(tx, ty, pr, 0, Math.PI * 2); rx.fill();
-    rx.fillStyle = "#f43f5e";
-    rx.beginPath(); rx.arc(tx, ty, 6, 0, Math.PI * 2); rx.fill();
-    rx.strokeStyle = "rgba(244,63,94,0.9)"; rx.lineWidth = 1.5;
-    rx.beginPath(); rx.moveTo(tx - 13, ty); rx.lineTo(tx + 13, ty); rx.moveTo(tx, ty - 13); rx.lineTo(tx, ty + 13); rx.stroke();
-    rx.font = "bold 11px ui-monospace, monospace"; rx.fillStyle = "#fda4af"; rx.textAlign = "left";
-    rx.fillText(`(${shownTarget.x.toFixed(1)}, ${shownTarget.y.toFixed(1)}) m`, clamp(tx + 14, 6, RW - 110), clamp(ty - 10, 14, RH - 6));
-  }
+  } catch (e) { /* keep the RAF loop alive even on a transient draw error */ }
   requestAnimationFrame(drawRadar);
 }
 requestAnimationFrame(drawRadar);
