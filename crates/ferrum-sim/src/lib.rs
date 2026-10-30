@@ -16,7 +16,7 @@ pub mod scenario;
 pub mod world;
 
 pub use adversary::{Adversary, AdversaryId};
-pub use controller::SimController;
+pub use controller::{ScenarioDriver, SimController};
 pub use phy_impl::{SharedWorld, SimClock, SimScanner, SimSniffer, SimTransport};
 pub use phys::{rssi_from_distance, trilaterate};
 pub use scenario::{scenario_by_name, Scenario, ScenarioEvent, SCENARIO_NAMES};
