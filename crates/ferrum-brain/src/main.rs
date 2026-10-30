@@ -98,10 +98,15 @@ async fn main() -> anyhow::Result<()> {
         return run_headless(args.seed, &args.scenario, args.ticks);
     }
     tracing_subscriber::fmt::init();
-    let orch = Orchestrator::new(args.seed, &args.scenario)?;
     println!(
         "ferrum-brain: scenario {:?} seed {} @ {} Hz -> open http://127.0.0.1:{}/",
         args.scenario, args.seed, args.tick_hz, args.port
     );
-    serve(orch, args.port, args.tick_hz).await
+    let (seed, scenario) = (args.seed, args.scenario);
+    serve(
+        move || Orchestrator::new(seed, &scenario),
+        args.port,
+        args.tick_hz,
+    )
+    .await
 }

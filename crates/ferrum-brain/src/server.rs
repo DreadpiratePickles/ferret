@@ -4,7 +4,8 @@
 //!
 //! # Concurrency
 //! `Orchestrator` owns `Rc<RefCell<RfWorld>>` handles, so it is `!Send` and cannot live inside a
-//! `tokio::spawn`ed task. Instead a single `std::thread` owns it for its whole life:
+//! `tokio::spawn`ed task. Instead a single `std::thread` *constructs* it (from a `Send` factory
+//! closure) and owns it for its whole life, so it never crosses a thread boundary:
 //!
 //! ```text
 //!   tick thread ── watch::Sender<SwarmSnapshot> ──▶ axum /ws handlers (one per client)
@@ -45,26 +46,15 @@ struct AppState {
     commands: mpsc::Sender<OperatorCommand>,
 }
 
-/// Wrapper that lets the (otherwise `!Send`) orchestrator be *moved once* onto the tick thread.
-struct SendOrch(Orchestrator);
-
-// SAFETY: `Orchestrator` is `!Send` only because it holds `Rc<RefCell<RfWorld>>` handles. Every
-// one of those `Rc` clones is created inside `Orchestrator::new` and stored inside the same
-// `Orchestrator` value; no `Rc` (or reference into one) is exposed through its public API. The
-// whole object graph therefore moves together as one unit, and after the move only the tick
-// thread ever touches it, so there is no cross-thread aliasing of the non-atomic refcounts.
-unsafe impl Send for SendOrch {}
-
 /// Run `orch` on the tick thread: apply queued commands, tick, publish, then sleep to the
 /// orchestrator's current tick rate. Exits when the command channel's sender is dropped (the
 /// server has shut down).
 fn tick_loop(
-    orch: SendOrch,
+    mut orch: Orchestrator,
     tick_hz: u8,
     snapshots: watch::Sender<Option<SwarmSnapshot>>,
     commands: mpsc::Receiver<OperatorCommand>,
 ) {
-    let mut orch = orch.0;
     orch.apply_command(OperatorCommand::SetTickHz(tick_hz));
     let mut next = Instant::now();
     loop {
@@ -147,17 +137,33 @@ pub struct SwarmHandle {
     state: AppState,
 }
 
-/// Move `orch` onto its dedicated tick thread and return the channels to talk to it.
+/// Start the tick thread, which builds the orchestrator itself via `make` (so the `!Send`
+/// value never crosses threads), and return the channels to talk to it.
 ///
-/// Synchronous on purpose: the (`!Send`) orchestrator never enters an async context, so the
-/// futures below stay `Send` and can be `tokio::spawn`ed.
-pub fn spawn_tick_thread(orch: Orchestrator, tick_hz: u8) -> std::io::Result<SwarmHandle> {
+/// Blocks briefly until construction finishes so a bad scenario name (or any other build error)
+/// is returned here instead of leaving a dead thread behind. Synchronous on purpose: the
+/// orchestrator never enters an async context, so the futures below stay `Send`.
+pub fn spawn_tick_thread<F>(make: F, tick_hz: u8) -> anyhow::Result<SwarmHandle>
+where
+    F: FnOnce() -> anyhow::Result<Orchestrator> + Send + 'static,
+{
     let (snap_tx, snap_rx) = watch::channel(None);
     let (cmd_tx, cmd_rx) = mpsc::channel();
-    let worker = SendOrch(orch);
+    let (ready_tx, ready_rx) = mpsc::channel::<anyhow::Result<()>>();
     std::thread::Builder::new()
         .name("ferrum-tick".into())
-        .spawn(move || tick_loop(worker, tick_hz, snap_tx, cmd_rx))?;
+        .spawn(move || match make() {
+            Ok(orch) => {
+                let _ = ready_tx.send(Ok(()));
+                tick_loop(orch, tick_hz, snap_tx, cmd_rx);
+            }
+            Err(e) => {
+                let _ = ready_tx.send(Err(e));
+            }
+        })?;
+    ready_rx
+        .recv()
+        .map_err(|_| anyhow::anyhow!("tick thread exited before reporting startup"))??;
     Ok(SwarmHandle {
         state: AppState {
             snapshots: snap_rx,
@@ -173,15 +179,19 @@ pub async fn serve_listener(listener: TcpListener, swarm: SwarmHandle) -> anyhow
     Ok(())
 }
 
-/// Bind `127.0.0.1:port`, run the tick thread at `tick_hz` and serve `/` and `/ws`.
-pub async fn serve(orch: Orchestrator, port: u16, tick_hz: u8) -> anyhow::Result<()> {
+/// Bind `127.0.0.1:port`, build the orchestrator on the tick thread with `make`, run it at
+/// `tick_hz` and serve `/` and `/ws`. Errors (bind failure, unknown scenario) are returned.
+pub async fn serve<F>(make: F, port: u16, tick_hz: u8) -> anyhow::Result<()>
+where
+    F: FnOnce() -> anyhow::Result<Orchestrator> + Send + 'static,
+{
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let listener = TcpListener::bind(addr).await?;
+    let swarm = spawn_tick_thread(make, tick_hz)?;
     tracing::info!(
         "ferrum-brain listening on http://{}",
         listener.local_addr()?
     );
-    let swarm = spawn_tick_thread(orch, tick_hz)?;
     serve_listener(listener, swarm).await
 }
 
@@ -197,8 +207,8 @@ mod tests {
     async fn start(tick_hz: u8) -> SocketAddr {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        let orch = Orchestrator::new(42, "red-team-incursion").unwrap();
-        let swarm = spawn_tick_thread(orch, tick_hz).unwrap();
+        let swarm =
+            spawn_tick_thread(|| Orchestrator::new(42, "red-team-incursion"), tick_hz).unwrap();
         tokio::spawn(async move {
             let _ = serve_listener(listener, swarm).await;
         });
@@ -246,6 +256,12 @@ mod tests {
             last = next_json(&mut b).await["tick"].as_u64().unwrap();
         }
         assert!(last > t1, "client B stopped advancing after A dropped");
+    }
+
+    #[tokio::test]
+    async fn test_unknown_scenario_is_a_startup_error() {
+        let r = spawn_tick_thread(|| Orchestrator::new(1, "no-such-scenario"), 10);
+        assert!(r.is_err());
     }
 
     #[tokio::test]
