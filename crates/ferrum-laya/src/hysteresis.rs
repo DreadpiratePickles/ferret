@@ -12,6 +12,7 @@
 
 use crate::score::{decide, rank, TypedDecision};
 use crate::signals::SignalVector;
+#[cfg(feature = "ids")]
 use ferrum_ids::{Detection, Severity};
 use ferrum_proto::PolicyMode;
 
@@ -84,6 +85,7 @@ impl LayaEngine {
     /// * else `d` is returned unchanged.
     ///
     /// `distribution` and `rationale` keep describing the System-1 evidence that was overridden.
+    #[cfg(feature = "ids")]
     pub fn system2(&mut self, d: TypedDecision, detections: &[Detection]) -> TypedDecision {
         let mut d = d;
         if detections.iter().any(|x| x.severity == Severity::Critical) {

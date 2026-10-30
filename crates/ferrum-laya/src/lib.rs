@@ -1,5 +1,10 @@
 #![no_std]
-//! `ferrum-laya` — explainable scored decision engine (`#![no_std]`, integer math only).
+//! `ferrum-laya` — explainable scored decision engine (integer math only).
+//!
+//! The System-1 core (signals, scoring, hysteresis, [`LayaEngine::system1`]) is `#![no_std]`, has no
+//! allocation and builds for bare-metal targets with `--no-default-features`. System-2
+//! ([`LayaEngine::system2`], IDS escalation) needs the `std` crate `ferrum-ids` and is only available
+//! with the default-on `ids` feature.
 //!
 //! Replaces the old `if/else` ladder in `ferrum-brain`:
 //!
@@ -7,7 +12,7 @@
 //! 2. A transparent weight table scores six policies and normalizes them to a distribution that
 //!    sums to exactly 100 (largest-remainder rounding) — see the `score` module.
 //! 3. A hysteresis state machine ([`LayaEngine`]) stops borderline inputs from flapping the policy.
-//! 4. [`LayaEngine::system2`] lets IDS detections escalate the decision.
+//! 4. `LayaEngine::system2` (feature `ids`) lets IDS detections escalate the decision.
 //!
 //! Note: `decision_latency_ms` is intentionally absent; it is a presentation concern of the caller.
 
@@ -22,7 +27,7 @@ pub use hysteresis::{LayaEngine, SWITCH_DWELL_TICKS, SWITCH_MARGIN_PCT};
 pub use score::{RationaleParts, TypedDecision, N_POLICIES};
 pub use signals::{signals_from, SignalKind, SignalVector, N_SIGNALS};
 
-#[cfg(test)]
+#[cfg(all(test, feature = "ids"))]
 mod tests {
     use super::*;
     use ferrum_ids::{Detection, Severity};

@@ -221,6 +221,7 @@ pub(crate) fn decide(s: &SignalVector, selected: PolicyMode, ranked: &Ranked) ->
 }
 
 /// Re-applies the actuation profile of `p` onto `d` (used by System-2 adoption).
+#[cfg(feature = "ids")]
 pub(crate) fn apply_profile(d: &mut TypedDecision, p: PolicyMode) {
     if let Some((nrf, coop, cam)) = profile(p) {
         d.selected_nrf_policy = nrf;

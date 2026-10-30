@@ -22,3 +22,9 @@ jobs:
         run: cargo clippy --workspace -- -D warnings
       - name: Test
         run: cargo test --workspace
+      - name: no_std core builds without IDS (host)
+        run: cargo build -p ferrum-laya --no-default-features
+      - name: no_std core builds bare-metal (RISC-V)
+        run: |
+          rustup target add riscv32imac-unknown-none-elf
+          cargo build -p ferrum-laya --no-default-features --target riscv32imac-unknown-none-elf
