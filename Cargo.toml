@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/ferrum-proto",
+    "crates/ferrum-hal",
     "crates/ferrum-wroom-nrf",
     "crates/ferrum-c5-scout",
     "crates/ferrum-s3-sense",

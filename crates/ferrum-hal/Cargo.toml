@@ -1,0 +1,11 @@
+[package]
+name = "ferrum-hal"
+version.workspace = true
+edition.workspace = true
+
+[features]
+# Enables the heapless mock PHYs for downstream crates' tests / the simulator.
+mock = []
+
+[dependencies]
+ferrum-proto = { path = "../ferrum-proto" }
