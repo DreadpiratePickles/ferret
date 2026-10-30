@@ -16,10 +16,22 @@ fn test_red_team_incursion_hits_all_pillars() {
     let snaps = run(300);
     assert_eq!(snaps.len(), 300);
 
-    // DETECT: the IDS raised at least one detection somewhere in the run.
+    // DETECT: the IDS raised an ADVERSARY-DRIVEN detection (severity >= HIGH, rank >= 3) tied to a
+    // red-team rule — ghost-band / ESB / deauth-EAPOL / jammer / honeypot. This must genuinely
+    // depend on the incursion; it fails on the quiet scenario (see `test_quiet_scenario_detect_is_silent`).
+    const RED_TEAM_RULES: [&str; 5] = [
+        "FR-GHOST-001", // covert ghost-band transmitter
+        "FR-ESB-001",   // MouseJack / ESB HID injection
+        "FR-WIFI-002",  // evil-twin EAPOL harvest
+        "FR-JAM-001",   // Layer-1 jammer
+        "FR-HP-001",    // honeypot / decoy tripwire
+    ];
     assert!(
-        snaps.iter().any(|s| !s.detections.is_empty()),
-        "DETECT: no IDS detection fired over the whole run"
+        snaps.iter().any(|s| s
+            .detections
+            .iter()
+            .any(|d| d.severity_rank >= 3 && RED_TEAM_RULES.contains(&d.rule_id))),
+        "DETECT: no adversary-driven HIGH+ detection fired over the whole run"
     );
 
     // DECEIVE: a tripwire fired against a decoy.
@@ -69,6 +81,27 @@ fn test_red_team_incursion_hits_all_pillars() {
         assert_eq!(s.nodes.len(), 3);
         assert!(!s.decision.selected_policy.is_empty());
     }
+}
+
+#[test]
+fn test_quiet_scenario_detect_is_silent() {
+    // With no adversary, the DETECT pillar must stay dark: no detection on any tick. This proves the
+    // red-team DETECT assertion is adversary-driven (and guards the C5 honest-zigbee fix: a stale
+    // zigbee default would light FR-ZB-001 every tick here).
+    let mut orch = Orchestrator::new(42, "quiet").expect("scenario builds");
+    let snaps: Vec<SwarmSnapshot> = (0..100).map(|_| orch.tick()).collect();
+    assert!(
+        snaps.iter().all(|s| s.detections.is_empty()),
+        "quiet scenario fired a detection: {:?}",
+        snaps
+            .iter()
+            .flat_map(|s| s.detections.iter().map(|d| d.rule_id))
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        snaps.iter().all(|s| !s.pillars.detect),
+        "DETECT pillar lit in a quiet scenario"
+    );
 }
 
 #[test]

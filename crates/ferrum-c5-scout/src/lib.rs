@@ -279,8 +279,14 @@ where
         self.node.deauth_5ghz_cnt = deauth.min(u32::from(u16::MAX)) as u16;
         self.node.eapol_5ghz_cnt = eapol.min(u32::from(u8::MAX)) as u8;
 
-        // 3. Assemble + seal telemetry (CRC stamped by `build_telemetry`).
-        let t = self.node.build_telemetry();
+        // 3. Assemble telemetry. 802.15.4/Zigbee has no source in the promiscuous sniffer
+        //    (`FrameKind` is Esb|BleAdv|WifiMgmt|Deauth|Eapol), so report it honestly from the
+        //    frames actually captured — zero — rather than the node's constructor placeholder.
+        //    Re-seal the CRC after overriding this frame-derived field.
+        let mut t = self.node.build_telemetry();
+        t.zigbee_pan_frames = 0;
+        let bytes = t.to_bytes();
+        t.crc8 = bytes[NodeTelemetry::SIZE - 1];
 
         // 4. Relay; a transport failure means the node is Offline (never panic).
         match self.transport.send(&t.to_bytes()) {
