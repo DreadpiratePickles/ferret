@@ -62,7 +62,7 @@ The old control plane was a priority `if/else` ladder. It is replaced by a score
 **System-1 (always available, bare-metal buildable):**
 
 1. **Signals.** `signals_from(...)` maps the three nodes' telemetry, the count of RPD-hot nRF channels and any sub-GHz burst into six normalized `0..=100` signals: `jam_ratio`, `proximity`, `ghost_esb`, `deauth_eapol`, `bt_ble`, `subghz`.
-2. **Scoring.** A transparent weight table (`WEIGHTS[policy][signal]`, plus a quiet-baseline bias that favours `WIDE_RECON`) scores six policies: `WIDE_RECON`, `ANOMALY_TRIAGE`, `SURGICAL_CAPTURE`, `FLOOD_JAM_SURVIVAL`, `TRIANGULATE_LOCK`, `SENTINEL_CORRELATE`. Scores are squared plus a small uncertainty floor, then normalized with largest-remainder rounding so the distribution **sums to exactly 100** and no policy is ever reported at exactly 0% or 100%. Weight magnitudes preserve the retired ladder's priority (jam beats proximity / sub-GHz beats ghost-band beats deauth beats BLE), so the same policy wins as before, but the runner-ups are now visible.
+2. **Scoring.** A transparent weight table (`WEIGHTS[policy][signal]`, plus a quiet-baseline bias that favours `WIDE_RECON`) scores six policies: `WIDE_RECON`, `ANOMALY_TRIAGE`, `SURGICAL_CAPTURE`, `FLOOD_JAM_SURVIVAL`, `TRIANGULATE_LOCK`, `SENTINEL_CORRELATE`. Scores are squared and given a small uncertainty floor, so no policy has zero raw mass before rounding. The percentages are then largest-remainder rounded so the distribution **sums to exactly 100**; an individual reported entry can still read 0% or 100%. Weight magnitudes preserve the retired ladder's priority (jam beats proximity / sub-GHz beats ghost-band beats deauth beats BLE), so the same policy wins as before, but the runner-ups are now visible.
 3. **Hysteresis.** Re-tasking three radios is expensive, so the engine holds an incumbent policy and only replaces it when a challenger leads by at least **20 percentage points** in one tick, or leads for **3 consecutive ticks**. The first tick adopts the argmax directly.
 4. **Rationale.** The `TypedDecision` carries the selected policy, the nRF mode, confidence, the full six-way distribution and the top three contributing signals with their share of the weighted score. That is what the dashboard's decision card renders.
 
@@ -82,7 +82,7 @@ The old control plane was a priority `if/else` ladder. It is replaced by a score
 
 | Adversary (`name()`) | What it does |
 | :--- | :--- |
-| `jammer` | Wideband (80 MHz) Layer-1 jammer; pegs RPD across 40+ nRF channels |
+| `jammer` | Wideband (80 MHz) Layer-1 jammer; pegs RPD across more than 40 nRF channels |
 | `evil-twin-deauth` | 5 GHz evil-twin AP plus a deauth flood for the first few seconds |
 | `mousejack-esb` | Hopping ESB keystroke injector, optionally with a ghost-band carrier implant |
 | `ble-rotating-implant` | BLE advertiser that rotates its private MAC; the emitter id is the identity that persists |
@@ -127,7 +127,7 @@ In order:
 7. **System-2** escalates on detections; an operator `ForcePolicy` override is applied last.
 8. **Sealed command.** The decision becomes a 13B `FerrumPolicyCmd`, HMAC-SHA256 sealed by the brain's `SecureChannel` and opened by the node-side channel. Replay and bad-MAC frames are counted and logged as alert events, never panics.
 9. **Apply.** The verified command is applied to all three agents (policy, nRF mode, PSRAM partition, camera / mic power, CPU frequency).
-10. **PROVE and triage.** On `FORENSIC_LOCKDOWN` a PCAP block is sealed into the SHA-256 `HashChain`. Every tick a 12-byte `FeatureVector` is queued for the LoRa uplink; when 40+ nRF channels are RPD-hot the 2.4 GHz link is treated as contended and the queue is held instead of flushed.
+10. **PROVE and triage.** On `FORENSIC_LOCKDOWN` a PCAP block is sealed into the SHA-256 `HashChain`. Every tick a 12-byte `FeatureVector` is queued for the LoRa uplink; when more than 40 nRF channels are RPD-hot the 2.4 GHz link is treated as contended and the queue is held instead of flushed.
 11. **Snapshot.** Everything is assembled into a `SwarmSnapshot`.
 
 **Transport.** The server is axum. The `Orchestrator` owns `Rc<RefCell<RfWorld>>` handles, so it is `!Send`; one dedicated `ferrum-tick` thread constructs and owns it, publishing each snapshot on a `tokio::sync::watch` channel (a slow client always sees the latest frame, never a backlog). Each WebSocket client forwards snapshots out and parses inbound text frames as `OperatorCommand`s over an `mpsc` channel back to the tick thread. `GET /` serves the dashboard HTML, embedded at compile time.
