@@ -10,183 +10,49 @@
 use ferrum_c5_scout::Esp32C5Node;
 use ferrum_deceive::{BleDecoyBeacon, DecoyKind, FakeSoftAp, TripwireEvent, TripwireKind};
 use ferrum_forensics::{verify_chain, HashChain, StoreForwardQueue};
-use ferrum_ids::{IdsEngine, Severity};
-use ferrum_proto::{DualNrfPolicy, FerrumPolicyCmd, NodeId, NodeTelemetry, PolicyMode};
+use ferrum_ids::IdsEngine;
+use ferrum_laya::{signals_from, LayaEngine, TypedDecision};
+use ferrum_proto::{FerrumPolicyCmd, NodeId, PolicyMode};
 use ferrum_s3_sense::XiaoS3SenseNode;
 use ferrum_secure::{OpenError, SecureChannel};
 use ferrum_triage::{channel_entropy_q, FeatureVector, RateWindow, RssiHistogram};
 use ferrum_wroom_nrf::{build_ble_fingerprint, WroomDualNrfNode};
+use std::time::Instant;
 
-/// Calibrated one-pass probability distribution returned by the Laya System-1 Decision Model.
-#[derive(Clone, Debug)]
-pub struct LayaTypedDecision {
-    pub selected_policy: PolicyMode,
-    pub selected_nrf_policy: DualNrfPolicy,
-    pub confidence_pct: u8,
-    pub decision_latency_ms: f32,
-    pub cooperative_band_split: bool,
-    pub trigger_s3_camera_mic: bool,
-    pub rationale: &'static str,
-    pub policy_distribution: [(PolicyMode, u8); 6],
-}
-
-/// Evaluates a rolling window of telemetry from WROOM (+2x nRF24), ESP32-C5, S3 Sense, and uConsole SDR
-/// and returns a typed Laya System-1 policy decision in a single forward pass.
-pub fn evaluate_laya_system1_decision(
-    wroom: &NodeTelemetry,
-    c5: &NodeTelemetry,
-    s3: &NodeTelemetry,
-    rpd_jammed_channels: u8,
-    uconsole_subghz_burst_mhz: Option<u16>,
-) -> LayaTypedDecision {
-    // 1. Layer-1 Physical 2.4GHz Jammer or Severe Flood -> Failover to 5GHz on C5 + Jam Triage on WROOM
-    if rpd_jammed_channels > 40 {
-        return LayaTypedDecision {
-            selected_policy: PolicyMode::FloodJamSurvival,
-            selected_nrf_policy: DualNrfPolicy::Layer1JamTriage,
-            confidence_pct: 97,
-            decision_latency_ms: 21.4,
-            cooperative_band_split: true,
-            trigger_s3_camera_mic: false,
-            rationale: "WROOM nRF24 RPD pegged across >40 channels with packet collapse -> Layer-1 2.4GHz Jammer! Shifting C5 to 100% 5GHz capture.",
-            policy_distribution: [
-                (PolicyMode::FloodJamSurvival, 97),
-                (PolicyMode::SurgicalCapture, 2),
-                (PolicyMode::AnomalyTriage, 1),
-                (PolicyMode::WideRecon, 0),
-                (PolicyMode::TriangulateLock, 0),
-                (PolicyMode::SentinelCorrelate, 0),
-            ],
-        };
-    }
-
-    // 2. Physical Proximity Breach (RSSI > -42 dBm) OR uConsole AIOv2 Sub-GHz Replay + Close BLE
-    if wroom.peak_anomaly_rssi > -42
-        || s3.peak_anomaly_rssi > -42
-        || uconsole_subghz_burst_mhz.is_some()
-    {
-        return LayaTypedDecision {
-            selected_policy: PolicyMode::SentinelCorrelate,
-            selected_nrf_policy: DualNrfPolicy::Simultaneous3ChBle,
-            confidence_pct: 94,
-            decision_latency_ms: 26.8,
-            cooperative_band_split: true,
-            trigger_s3_camera_mic: true,
-            rationale: "Close-range RF anomaly (>-42dBm / Sub-GHz burst) -> Allocating S3 PSRAM to OV2640 Cam + PDM Mic & locking all 3 BLE Adv channels.",
-            policy_distribution: [
-                (PolicyMode::SentinelCorrelate, 94),
-                (PolicyMode::TriangulateLock, 4),
-                (PolicyMode::SurgicalCapture, 2),
-                (PolicyMode::AnomalyTriage, 0),
-                (PolicyMode::WideRecon, 0),
-                (PolicyMode::FloodJamSurvival, 0),
-            ],
-        };
-    }
-
-    // 3. Ghost-Band (`2485-2525 MHz`) or MouseJack/ESB Wireless HID Frame Detected on WROOM Dual-nRF24
-    if wroom.ghost_band_hits > 0 || wroom.esb_hid_frames > 0 {
-        return LayaTypedDecision {
-            selected_policy: PolicyMode::TriangulateLock,
-            selected_nrf_policy: DualNrfPolicy::HunterKillerEsb,
-            confidence_pct: 96,
-            decision_latency_ms: 24.1,
-            cooperative_band_split: true,
-            trigger_s3_camera_mic: false,
-            rationale: "Covert Ghost-Band (2485-2525MHz) / ESB HID injection spotted by nRF#1 -> Locking nRF#2 in Promiscuous ESB Sniffer + 3-node triangulation.",
-            policy_distribution: [
-                (PolicyMode::TriangulateLock, 96),
-                (PolicyMode::SurgicalCapture, 3),
-                (PolicyMode::AnomalyTriage, 1),
-                (PolicyMode::WideRecon, 0),
-                (PolicyMode::FloodJamSurvival, 0),
-                (PolicyMode::SentinelCorrelate, 0),
-            ],
-        };
-    }
-
-    // 4. 5 GHz Evil Twin / Deauth / EAPOL Handshake Burst on ESP32-C5
-    if c5.deauth_disassoc_cnt > 5 || c5.eapol_handshake_cnt > 0 {
-        return LayaTypedDecision {
-            selected_policy: PolicyMode::SurgicalCapture,
-            selected_nrf_policy: DualNrfPolicy::Simultaneous3ChBle,
-            confidence_pct: 95,
-            decision_latency_ms: 23.5,
-            cooperative_band_split: true,
-            trigger_s3_camera_mic: false,
-            rationale: "5GHz Deauth/EAPOL burst on ESP32-C5 -> Pinning C5 to target 5GHz channel @ 240MHz while S3 buffers 2.4GHz in 7.5MB PSRAM.",
-            policy_distribution: [
-                (PolicyMode::SurgicalCapture, 95),
-                (PolicyMode::AnomalyTriage, 3),
-                (PolicyMode::TriangulateLock, 2),
-                (PolicyMode::WideRecon, 0),
-                (PolicyMode::FloodJamSurvival, 0),
-                (PolicyMode::SentinelCorrelate, 0),
-            ],
-        };
-    }
-
-    // 5. BT Classic (BR/EDR) Skimmer/Implant or Elevated BLE Traffic -> Anomaly Triage + Active GATT
-    if wroom.bt_classic_inq_cnt > 0 || wroom.ble_adv_fps > 350 {
-        return LayaTypedDecision {
-            selected_policy: PolicyMode::AnomalyTriage,
-            selected_nrf_policy: DualNrfPolicy::Simultaneous3ChBle,
-            confidence_pct: 91,
-            decision_latency_ms: 22.9,
-            cooperative_band_split: true,
-            trigger_s3_camera_mic: false,
-            rationale: "BT Classic (BR/EDR) or unknown BLE profile detected on WROOM -> Commanding S3 Sense to perform Active BLE GATT enumeration.",
-            policy_distribution: [
-                (PolicyMode::AnomalyTriage, 91),
-                (PolicyMode::WideRecon, 5),
-                (PolicyMode::TriangulateLock, 4),
-                (PolicyMode::SurgicalCapture, 0),
-                (PolicyMode::FloodJamSurvival, 0),
-                (PolicyMode::SentinelCorrelate, 0),
-            ],
-        };
-    }
-
-    // Baseline Nominal RF Environment
-    LayaTypedDecision {
-        selected_policy: PolicyMode::WideRecon,
-        selected_nrf_policy: DualNrfPolicy::SplitSpectrumWaterfall,
-        confidence_pct: 98,
-        decision_latency_ms: 19.2,
-        cooperative_band_split: false,
-        trigger_s3_camera_mic: false,
-        rationale: "RF spectrum nominal -> WROOM Dual-nRF sweeping 126MHz waterfall, C5 sweeping 5GHz+Zigbee, S3 in 80MHz low-power ring buffer.",
-        policy_distribution: [
-            (PolicyMode::WideRecon, 98),
-            (PolicyMode::AnomalyTriage, 2),
-            (PolicyMode::SurgicalCapture, 0),
-            (PolicyMode::FloodJamSurvival, 0),
-            (PolicyMode::TriangulateLock, 0),
-            (PolicyMode::SentinelCorrelate, 0),
-        ],
+/// Presentation-only narrative for a policy (the engine itself stays prose-free).
+fn narrative(policy: PolicyMode) -> &'static str {
+    match policy {
+        PolicyMode::FloodJamSurvival => "WROOM nRF24 RPD pegged across >40 channels -> Layer-1 2.4GHz Jammer! Shifting C5 to 100% 5GHz capture.",
+        PolicyMode::SentinelCorrelate => "Close-range RF anomaly (>-42dBm / Sub-GHz burst) -> Allocating S3 PSRAM to OV2640 Cam + PDM Mic & locking all 3 BLE Adv channels.",
+        PolicyMode::TriangulateLock => "Covert Ghost-Band (2485-2525MHz) / ESB HID injection spotted by nRF#1 -> Locking nRF#2 in Promiscuous ESB Sniffer + 3-node triangulation.",
+        PolicyMode::SurgicalCapture => "5GHz Deauth/EAPOL burst on ESP32-C5 -> Pinning C5 to target 5GHz channel @ 240MHz while S3 buffers 2.4GHz in 7.5MB PSRAM.",
+        PolicyMode::AnomalyTriage => "BT Classic (BR/EDR) or unknown BLE profile detected on WROOM -> Commanding S3 Sense to perform Active BLE GATT enumeration.",
+        PolicyMode::WideRecon => "RF spectrum nominal -> WROOM Dual-nRF sweeping 126MHz waterfall, C5 sweeping 5GHz+Zigbee, S3 in 80MHz low-power ring buffer.",
+        PolicyMode::ForensicLockdown => "IDS escalated CRITICAL detection -> FORENSIC_LOCKDOWN: PCAP ring frozen, hash chain sealed, cam/mic evidence on.",
+        _ => "IDS high-severity detection overriding System-1 reactive prior.",
     }
 }
 
-/// Laya System-2: consumes `ferrum-ids` detections + honeypot tripwires and escalates
-/// the System-1 reactive policy. Critical detections force `FORENSIC_LOCKDOWN`;
-/// High detections adopt the rule's recommended policy; otherwise System-1 stands.
-pub fn evaluate_laya_system2_decision(
-    system1: LayaTypedDecision,
-    detections: &[ferrum_ids::Detection],
-) -> LayaTypedDecision {
-    let mut d = system1;
-    if detections.iter().any(|x| x.severity == Severity::Critical) {
-        d.selected_policy = PolicyMode::ForensicLockdown;
-        d.trigger_s3_camera_mic = true;
-        d.confidence_pct = 99;
-        d.rationale = "IDS escalated CRITICAL detection -> FORENSIC_LOCKDOWN: PCAP ring frozen, hash chain sealed, cam/mic evidence on.";
-    } else if let Some(top) = detections.iter().max_by_key(|x| x.severity.rank()) {
-        if top.severity.rank() >= Severity::High.rank() {
-            d.selected_policy = top.recommended_policy;
-            d.rationale = "IDS high-severity detection overriding System-1 reactive prior.";
-        }
-    }
-    d
+/// Renders the engine's machine-readable rationale (top weighted signals + runner-ups).
+fn explain(d: &TypedDecision) -> String {
+    let top: Vec<String> = d
+        .rationale
+        .top_signals
+        .iter()
+        .filter(|(_, share)| *share > 0)
+        .map(|(k, share)| format!("{}={}%", k.as_str(), share))
+        .collect();
+    let dist: Vec<String> = d
+        .distribution
+        .iter()
+        .filter(|(_, pct)| *pct > 0)
+        .map(|(p, pct)| format!("{}:{}", p.as_str(), pct))
+        .collect();
+    format!(
+        "drivers [{}] | distribution [{}]",
+        top.join(", "),
+        dist.join(", ")
+    )
 }
 
 /// 3-Node Spatial RSSI Trilateration Engine (`Anchor A = WROOM (0,0)`, `Anchor B = C5 (6m, 0)`, `Anchor C = S3 Sense (3m, 5.2m)`).
@@ -222,6 +88,7 @@ fn main() {
     let mut wroom = WroomDualNrfNode::new();
     let mut c5 = Esp32C5Node::new();
     let mut s3 = XiaoS3SenseNode::new();
+    let mut laya = LayaEngine::new();
 
     struct Scenario {
         name: &'static str,
@@ -322,13 +189,10 @@ fn main() {
         let t_c5 = c5.build_telemetry();
         let t_s3 = s3.build_telemetry();
 
-        let decision = evaluate_laya_system1_decision(
-            &t_wroom,
-            &t_c5,
-            &t_s3,
-            sc.rpd_jam_channels,
-            sc.subghz_mhz,
-        );
+        let t0 = Instant::now();
+        let signals = signals_from(&t_wroom, &t_c5, &t_s3, sc.rpd_jam_channels, sc.subghz_mhz);
+        let decision = laya.system1(&signals);
+        let decision_latency_ms = t0.elapsed().as_secs_f32() * 1000.0;
 
         let cmd = FerrumPolicyCmd {
             target_node: NodeId::Broadcast as u8,
@@ -360,13 +224,14 @@ fn main() {
         let (x, y, dists) = trilaterate_target_position_meters(sc.anchor_rssi);
 
         println!(
-            "  • Laya Decision ({:.1}ms, {}% conf): Policy = [{}] | WROOM Dual-nRF = [{}]",
-            decision.decision_latency_ms,
+            "  • Laya Decision ({:.3}ms, {}% conf): Policy = [{}] | WROOM Dual-nRF = [{}]",
+            decision_latency_ms,
             decision.confidence_pct,
             decision.selected_policy.as_str(),
             decision.selected_nrf_policy.as_str(),
         );
-        println!("  • Rationale: {}", decision.rationale);
+        println!("  • Rationale: {}", narrative(decision.selected_policy));
+        println!("  • Evidence: {}", explain(&decision));
         println!(
             "  • 3-Node Spatial Radar: Target @ ({:.2}m, {:.2}m) | d(WROOM)={:.1}m, d(C5)={:.1}m, d(S3)={:.1}m",
             x, y, dists[0], dists[1], dists[2]
@@ -387,7 +252,7 @@ fn main() {
     let t_wroom = wroom.build_telemetry();
     let t_c5 = c5.build_telemetry();
     let t_s3 = s3.build_telemetry();
-    let decision = evaluate_laya_system1_decision(&t_wroom, &t_c5, &t_s3, 4, Some(433));
+    let decision = laya.system1(&signals_from(&t_wroom, &t_c5, &t_s3, 4, Some(433)));
 
     // ================================================================================
     // PHASE 2 — PILLARS: DETECT / DECEIVE / DEFEND / PROVE
@@ -449,12 +314,12 @@ fn main() {
     }
 
     // ---- System-2 escalation --------------------------------------------------------
-    let s2 = evaluate_laya_system2_decision(decision.clone(), &detections);
+    let s2 = laya.system2(decision, &detections);
     println!(
         "\n[LAYA-S2] Escalated policy = [{}] ({}% conf) | {}",
         s2.selected_policy.as_str(),
         s2.confidence_pct,
-        s2.rationale
+        narrative(s2.selected_policy)
     );
 
     // ---- Pillar 3: authenticated command channel ------------------------------------

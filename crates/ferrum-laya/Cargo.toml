@@ -1,0 +1,8 @@
+[package]
+name = "ferrum-laya"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ferrum-proto = { path = "../ferrum-proto" }
+ferrum-ids = { path = "../ferrum-ids" }

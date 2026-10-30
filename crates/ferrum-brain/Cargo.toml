@@ -13,3 +13,4 @@ ferrum-ids = { path = "../ferrum-ids" }
 ferrum-deceive = { path = "../ferrum-deceive" }
 ferrum-forensics = { path = "../ferrum-forensics" }
 ferrum-triage = { path = "../ferrum-triage" }
+ferrum-laya = { path = "../ferrum-laya" }

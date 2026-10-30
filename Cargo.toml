@@ -11,6 +11,7 @@ members = [
     "crates/ferrum-deceive",
     "crates/ferrum-forensics",
     "crates/ferrum-triage",
+    "crates/ferrum-laya",
 ]
 
 [workspace.package]
