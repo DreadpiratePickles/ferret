@@ -4,760 +4,829 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ferrum CyberSwarm — Tactical Control Deck</title>
-  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
   <style>
     :root {
-      --background: #090d16;
-      --foreground: #f1f5f9;
-      --card: #111827;
+      --bg: #070b13;
+      --bg2: #0a0f1a;
+      --fg: #f1f5f9;
+      --card: #0f1626;
+      --card2: #111b2e;
       --border: #1e293b;
+      --border2: #273449;
       --primary: #10b981;
-      --primary-foreground: #052e16;
-      --secondary: #1e293b;
-      --secondary-foreground: #e2e8f0;
-      --muted-foreground: #94a3b8;
+      --sky: #0ea5e9;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --violet: #a78bfa;
+      --muted: #94a3b8;
+      --dim: #64748b;
+      --glow-emerald: 0 0 14px rgba(16,185,129,.55);
+      --glow-rose: 0 0 14px rgba(244,63,94,.55);
+      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      --sans: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background:
+        radial-gradient(1200px 600px at 20% -10%, rgba(16,185,129,.06), transparent 60%),
+        radial-gradient(1000px 500px at 90% 0%, rgba(14,165,233,.06), transparent 55%),
+        var(--bg);
+      color: var(--fg);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+      padding: 14px;
+      user-select: none;
+      min-height: 100vh;
+    }
+    .wrap { max-width: 1480px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+    .mono { font-family: var(--mono); }
+    .card {
+      background: linear-gradient(180deg, var(--card2), var(--card));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 8px 30px rgba(0,0,0,.35);
+    }
+    .lbl { font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+    .h2 { font-size: 15px; font-weight: 650; margin: 1px 0 0; }
+    .muted { color: var(--muted); }
+    .dim { color: var(--dim); }
+    .row { display: flex; align-items: center; }
+    .between { justify-content: space-between; }
+    .wrapf { flex-wrap: wrap; }
+    .gap2 { gap: 8px; } .gap3 { gap: 12px; } .gap1 { gap: 5px; }
+
+    /* ---- header ---- */
+    .header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .status-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--dim); box-shadow: 0 0 0 0 transparent; transition: .3s; }
+    .status-dot.live { background: var(--primary); box-shadow: var(--glow-emerald); animation: pulse 1.6s infinite; }
+    .status-dot.connecting { background: var(--amber); box-shadow: 0 0 12px rgba(245,158,11,.6); animation: pulse 1s infinite; }
+    .status-dot.down { background: var(--rose); box-shadow: var(--glow-rose); }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+    h1 { font-size: 17px; font-weight: 750; letter-spacing: .02em; margin: 0; }
+    .pill { font-family: var(--mono); font-size: 10.5px; padding: 3px 8px; border-radius: 7px; background: var(--bg2); border: 1px solid var(--border); color: var(--muted); }
+    .pill.ok { color: var(--primary); border-color: rgba(16,185,129,.4); }
+    .pill.warn { color: var(--amber); border-color: rgba(245,158,11,.4); }
+    .pill.alert { color: var(--rose); border-color: rgba(244,63,94,.45); background: rgba(244,63,94,.08); }
+
+    /* ---- controls ---- */
+    .controls { display: flex; flex-direction: column; gap: 10px; }
+    .ctl-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ctl-lbl { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); min-width: 78px; }
+    button, select {
+      font-family: var(--mono); font-size: 11px; color: var(--fg);
+      background: var(--bg2); border: 1px solid var(--border2);
+      padding: 6px 11px; border-radius: 8px; cursor: pointer; transition: .15s;
+    }
+    button:hover, select:hover { border-color: var(--primary); color: var(--primary); }
+    button:active { transform: translateY(1px); }
+    button.danger:hover { border-color: var(--rose); color: var(--rose); }
+    button.active { background: var(--primary); color: #052e16; border-color: var(--primary); font-weight: 700; }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    select { padding-right: 8px; }
+    .adv-tag { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10.5px; padding: 3px 4px 3px 9px; border-radius: 7px; background: rgba(244,63,94,.1); border: 1px solid rgba(244,63,94,.35); color: #fda4af; }
+    .adv-tag button { padding: 1px 6px; font-size: 10px; border-radius: 5px; background: transparent; border: 1px solid rgba(244,63,94,.4); color: #fda4af; }
+    .adv-tag button:hover { background: var(--rose); color: #fff; border-color: var(--rose); }
+
+    /* ---- grid ---- */
+    .grid-top { display: grid; grid-template-columns: 1.35fr 1fr; gap: 12px; }
+    .grid-nodes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .grid-bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 1080px) { .grid-top, .grid-bottom { grid-template-columns: 1fr; } .grid-nodes { grid-template-columns: 1fr; } }
+
+    /* ---- decision ---- */
+    .headline { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .policy-name { font-family: var(--mono); font-size: 22px; font-weight: 800; color: var(--primary); text-shadow: var(--glow-emerald); letter-spacing: .01em; transition: color .3s; }
+    .policy-name.defend { color: var(--rose); text-shadow: var(--glow-rose); }
+    .conf { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+    .srcbadge { font-family: var(--mono); font-size: 10px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border2); color: var(--muted); }
+    .srcbadge.esc { background: rgba(244,63,94,.14); color: #fda4af; border-color: rgba(244,63,94,.5); box-shadow: var(--glow-rose); }
+    .bar-row { display: grid; grid-template-columns: 128px 1fr 34px; align-items: center; gap: 8px; margin-top: 6px; font-family: var(--mono); font-size: 11px; }
+    .bar-track { height: 9px; border-radius: 6px; background: #0b1220; overflow: hidden; border: 1px solid var(--border); }
+    .bar-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, #0ea5e9, #38bdf8); transition: width .35s ease; }
+    .bar-row.sel .bar-fill { background: linear-gradient(90deg, #059669, #10b981); box-shadow: var(--glow-emerald); }
+    .bar-row.sel .name, .bar-row.sel .pct { color: var(--primary); font-weight: 700; }
+    .name { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pct { text-align: right; color: var(--dim); }
+    .signals { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .sig { font-family: var(--mono); font-size: 10.5px; padding: 4px 9px; border-radius: 7px; background: var(--bg2); border: 1px solid var(--border); color: var(--muted); }
+    .sig b { color: var(--sky); font-weight: 700; }
+
+    /* ---- canvases ---- */
+    canvas { display: block; width: 100%; border-radius: 10px; background: #060a11; border: 1px solid var(--border); }
+    .spectrum-legend { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 6px; }
+    .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 4px; }
+    .scale { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9.5px; color: var(--dim); margin-top: 3px; }
+
+    /* ---- pillars ---- */
+    .pillars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .pillar { border: 1px solid var(--border); border-radius: 11px; padding: 11px; background: var(--bg2); text-align: center; transition: .3s; position: relative; overflow: hidden; }
+    .pillar .pname { font-family: var(--mono); font-size: 13px; font-weight: 750; letter-spacing: .08em; }
+    .pillar .psub { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 3px; }
+    .pillar.on { border-color: var(--pc); box-shadow: 0 0 16px var(--pcg), 0 0 0 1px var(--pc) inset; background: linear-gradient(180deg, var(--pcbg), var(--bg2)); }
+    .pillar.on .pname { color: var(--pc); }
+    .pillar[data-p="detect"]  { --pc: #f59e0b; --pcg: rgba(245,158,11,.3); --pcbg: rgba(245,158,11,.08); }
+    .pillar[data-p="deceive"] { --pc: #a78bfa; --pcg: rgba(167,139,250,.3); --pcbg: rgba(167,139,250,.08); }
+    .pillar[data-p="defend"]  { --pc: #f43f5e; --pcg: rgba(244,63,94,.3); --pcbg: rgba(244,63,94,.08); }
+    .pillar[data-p="prove"]   { --pc: #10b981; --pcg: rgba(16,185,129,.3); --pcbg: rgba(16,185,129,.08); }
+    .lvlbars { display: flex; gap: 3px; justify-content: center; margin-top: 7px; }
+    .lvlbars i { width: 10px; height: 5px; border-radius: 2px; background: var(--border2); display: block; }
+    .pillar.on .lvlbars i.f { background: var(--pc); }
+
+    /* ---- node cards ---- */
+    .node-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .node-title { font-size: 13.5px; font-weight: 700; }
+    .node-sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; }
+    .kv { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; padding: 2.5px 0; }
+    .kv .k { color: var(--muted); } .kv .v { color: var(--fg); }
+    .node.offline { opacity: .5; filter: grayscale(.6); }
+    .onpill { font-family: var(--mono); font-size: 9.5px; padding: 2px 7px; border-radius: 6px; }
+    .onpill.up { background: rgba(16,185,129,.14); color: var(--primary); border: 1px solid rgba(16,185,129,.4); }
+    .onpill.dn { background: rgba(244,63,94,.14); color: var(--rose); border: 1px solid rgba(244,63,94,.4); }
+    .seg { margin-top: 9px; padding: 9px; border-radius: 9px; background: var(--bg2); border: 1px solid var(--border); }
+    .stack { height: 11px; border-radius: 6px; overflow: hidden; display: flex; background: #0b1220; border: 1px solid var(--border); margin: 6px 0 4px; }
+    .stack > span { height: 100%; transition: width .4s ease; }
+    .mini-legend { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9px; color: var(--dim); }
+    .power { font-family: var(--mono); font-size: 9.5px; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--border2); color: var(--dim); }
+    .power.on { background: rgba(244,63,94,.16); color: #fda4af; border-color: rgba(244,63,94,.5); }
+
+    /* ---- forensics / secure ---- */
+    .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; }
+    .stat .sv { font-family: var(--mono); font-size: 17px; font-weight: 750; }
+    .stat .sk { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-top: 2px; }
+    .chain-tip { font-family: var(--mono); font-size: 11px; color: var(--sky); word-break: break-all; }
+    .chip { font-family: var(--mono); font-size: 10px; padding: 2px 8px; border-radius: 6px; }
+    .chip.valid { background: rgba(16,185,129,.14); color: var(--primary); border: 1px solid rgba(16,185,129,.4); }
+    .chip.invalid { background: rgba(244,63,94,.14); color: var(--rose); border: 1px solid rgba(244,63,94,.4); }
+
+    /* ---- detections ---- */
+    .det { border-left: 3px solid var(--dim); background: var(--bg2); border-radius: 0 8px 8px 0; padding: 7px 10px; margin-top: 7px; }
+    .det .dt { font-family: var(--mono); font-size: 11.5px; font-weight: 650; }
+    .det .de { font-size: 10.5px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+    .det .dm { font-family: var(--mono); font-size: 9.5px; color: var(--dim); margin-top: 3px; }
+    .sev { font-family: var(--mono); font-size: 9px; padding: 1px 6px; border-radius: 5px; margin-left: 6px; }
+    .sev-0 { background:#1e293b; color:#94a3b8; } .sev-1 { background:#1e3a5f; color:#7dd3fc; }
+    .sev-2 { background:#3f2d12; color:#fcd34d; } .sev-3 { background:#4a2410; color:#fdba74; }
+    .sev-4 { background:#4c1320; color:#fda4af; }
+    .det.r0 { border-color:#64748b; } .det.r1 { border-color:#38bdf8; } .det.r2 { border-color:#f59e0b; }
+    .det.r3 { border-color:#fb923c; } .det.r4 { border-color:#f43f5e; }
+
+    /* ---- events ---- */
+    .events { max-height: 190px; overflow-y: auto; display: flex; flex-direction: column-reverse; gap: 0; font-family: var(--mono); font-size: 10.5px; }
+    .ev { padding: 3px 2px; border-bottom: 1px solid rgba(30,41,59,.5); display: flex; gap: 8px; }
+    .ev .et { color: var(--dim); flex-shrink: 0; }
+    .ev.info .em { color: var(--muted); }
+    .ev.warn .em { color: var(--amber); }
+    .ev.alert .em { color: var(--rose); font-weight: 600; }
+    .events::-webkit-scrollbar { width: 6px; } .events::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+    .empty { color: var(--dim); font-family: var(--mono); font-size: 10.5px; padding: 6px 0; }
+    .section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   </style>
 </head>
-<body class="bg-[var(--background)] text-[var(--foreground)] antialiased p-4 md:p-6 select-none">
-  <div class="max-w-7xl mx-auto space-y-4">
+<body>
+  <div class="wrap">
 
-    <!-- Header Bar -->
-    <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
-      <div class="flex items-center gap-3">
-        <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+    <!-- ===== Header ===== -->
+    <div class="card header">
+      <div class="brand">
+        <div id="statusDot" class="status-dot connecting"></div>
         <div>
-          <div class="flex items-center gap-2">
-            <h1 class="text-lg font-bold tracking-tight">FERRUM CYBERSWARM // TACTICAL DECK</h1>
-            <span class="text-xs font-mono px-2 py-0.5 rounded bg-[var(--secondary)] text-[var(--secondary-foreground)] border border-[var(--border)]">
-              Pi 5 (8GB) + uConsole AIOv2
-            </span>
+          <div class="row gap2 wrapf">
+            <h1>FERRUM CYBERSWARM // TACTICAL DECK</h1>
+            <span class="pill">Pi 5 (8GB) · 3-Node ESP-NOW Mesh · Laya Two-Tier Engine</span>
           </div>
-          <p class="text-xs text-[var(--muted-foreground)]">
-            AI-Adaptive Rust Unikernel Control Plane • 3-Node ESP-NOW Mesh • Laya System-1 Decision Loop
-          </p>
+          <div class="lbl" style="margin-top:3px" id="connMsg">connecting to swarm…</div>
         </div>
       </div>
-
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="text-xs font-mono text-[var(--muted-foreground)] mr-1">INJECT SCENARIO:</span>
-        <button onclick="setScenario('nominal')" id="btn-nominal" class="scenario-btn text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--primary)] text-[var(--primary-foreground)] font-semibold transition">
-          1. Nominal Sweep
-        </button>
-        <button onclick="setScenario('ghost_esb')" id="btn-ghost_esb" class="scenario-btn text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition">
-          2. Ghost-Band (2498MHz) + MouseJack
-        </button>
-        <button onclick="setScenario('wifi5_deauth')" id="btn-wifi5_deauth" class="scenario-btn text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition">
-          3. 5GHz Evil Twin (Ch 149)
-        </button>
-        <button onclick="setScenario('layer1_jam')" id="btn-layer1_jam" class="scenario-btn text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition">
-          4. 2.4GHz Layer-1 RF Jammer
-        </button>
-        <button onclick="setScenario('proximity_fusion')" id="btn-proximity_fusion" class="scenario-btn text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition">
-          5. Intruder (-34dBm) + 433MHz + BLE Rotate
-        </button>
+      <div class="row gap2 wrapf" style="justify-content:flex-end">
+        <span class="pill mono" id="scenarioPill">SCENARIO —</span>
+        <span class="pill mono" id="pausePill">RUNNING</span>
+        <span class="pill mono" id="tickPill">t0 · 0.0s · 10 Hz</span>
+        <span class="pill mono" id="loraPill">LoRa Q: 0</span>
       </div>
     </div>
 
-    <!-- Top Grid: Laya System-1 Decision Engine + 3-Node Spatial Triangulation Radar -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+    <!-- ===== Operator controls ===== -->
+    <div class="card controls">
+      <div class="ctl-row">
+        <span class="ctl-lbl">Inject</span>
+        <button onclick="inject('jammer')">2.4GHz Jammer</button>
+        <button onclick="inject('evil-twin-deauth')">5GHz Evil-Twin</button>
+        <button onclick="inject('mousejack-esb')">MouseJack ESB</button>
+        <button onclick="inject('ble-rotating-implant')">BLE Implant</button>
+        <button onclick="inject('subghz-replay')">Sub-GHz Replay</button>
+        <button onclick="inject('bt-skimmer')">BT Skimmer</button>
+      </div>
+      <div class="ctl-row">
+        <span class="ctl-lbl">Active</span>
+        <div id="advList" class="row gap2 wrapf"><span class="empty">none injected</span></div>
+      </div>
+      <div class="ctl-row">
+        <span class="ctl-lbl">Force</span>
+        <select id="policySel" class="mono">
+          <option value="1">WIDE_RECON (0x01)</option>
+          <option value="2">ANOMALY_TRIAGE (0x02)</option>
+          <option value="3">SURGICAL_CAPTURE (0x03)</option>
+          <option value="4">FLOOD_JAM_SURVIVAL (0x04)</option>
+          <option value="5">TRIANGULATE_LOCK (0x05)</option>
+          <option value="6">SENTINEL_CORRELATE (0x06)</option>
+          <option value="7">IDS_ENFORCE (0x07)</option>
+          <option value="8">HONEYPOT_LURE (0x08)</option>
+          <option value="9">FORENSIC_LOCKDOWN (0x09)</option>
+          <option value="10">MESH_SURVIVE (0x0A)</option>
+        </select>
+        <button onclick="forcePolicy()">Force Policy</button>
+        <button class="danger" onclick="sendCmd({ForcePolicy:0})">Release Override</button>
+        <span style="width:14px"></span>
+        <span class="ctl-lbl" style="min-width:auto">Scenario</span>
+        <button id="scn-quiet" onclick="setScenario('quiet')">quiet</button>
+        <button id="scn-red-team-incursion" onclick="setScenario('red-team-incursion')">red-team-incursion</button>
+      </div>
+      <div class="ctl-row">
+        <span class="ctl-lbl">Run</span>
+        <button id="pauseBtn" onclick="togglePause()">Pause</button>
+        <span class="ctl-lbl" style="min-width:auto">Tick Hz</span>
+        <button onclick="setHz(1)">1</button>
+        <button onclick="setHz(2)">2</button>
+        <button onclick="setHz(5)">5</button>
+        <button onclick="setHz(10)">10</button>
+        <button onclick="setHz(20)">20</button>
+      </div>
+    </div>
 
-      <!-- Left 7 cols: Laya System-1 Decision Engine + Dual nRF24 126-MHz Waterfall -->
-      <div class="lg:col-span-7 space-y-4">
-
-        <!-- Laya System-1 Decision Card -->
-        <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3">
-          <div class="flex items-center justify-between">
-            <div>
-              <span class="text-xs font-mono uppercase tracking-wider text-[var(--muted-foreground)]">Pi 5 Control Plane • Laya System-1 Engine</span>
-              <h2 class="text-base font-semibold">One-Pass Typed Policy Decision</h2>
-            </div>
-            <div class="text-right font-mono">
-              <div id="laya-latency" class="text-sm font-bold text-emerald-500">19.2 ms</div>
-              <div class="text-xs text-[var(--muted-foreground)]">1 forward pass • 0 tokens</div>
-            </div>
+    <!-- ===== Top: decision + radar ===== -->
+    <div class="grid-top">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <!-- Decision -->
+        <div class="card">
+          <div class="section-title">
+            <div><div class="lbl">Laya Control Plane · Two-Tier Typed Decision</div><div class="h2">One-Pass Policy Selection</div></div>
+            <span id="srcBadge" class="srcbadge">SYSTEM-1</span>
           </div>
-
-          <div class="p-3 rounded-lg bg-[var(--background)] border border-[var(--border)] flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <div class="text-xs text-[var(--muted-foreground)]">ACTIVE SWARM POLICY</div>
-              <div id="active-policy-badge" class="text-base font-mono font-bold text-emerald-500">WIDE_RECON (0x01)</div>
-            </div>
-            <div>
-              <div class="text-xs text-[var(--muted-foreground)]">WROOM DUAL-nRF24 MODE</div>
-              <div id="active-nrf-badge" class="text-sm font-mono font-semibold">SPLIT_SPECTRUM_WATERFALL</div>
-            </div>
-            <div>
-              <div class="text-xs text-[var(--muted-foreground)]">ESP-NOW FRAME</div>
-              <div class="text-xs font-mono">13B Cmd / CRC8 OK</div>
-            </div>
+          <div class="headline">
+            <span id="policyName" class="policy-name">—</span>
+            <span id="confText" class="conf">confidence —</span>
           </div>
-
-          <p id="laya-rationale" class="text-xs font-mono text-[var(--muted-foreground)] leading-relaxed">
-            RF spectrum nominal -> WROOM Dual-nRF sweeping 126MHz waterfall, C5 sweeping 5GHz+Zigbee, S3 in 80MHz low-power ring buffer.
-          </p>
-
-          <!-- Probability distribution bars -->
-          <div id="laya-bars" class="space-y-1.5 pt-1"></div>
+          <div class="mono" style="font-size:11px;color:var(--muted);margin-top:4px">
+            WROOM dual-nRF mode: <b id="nrfMode" style="color:var(--amber)">—</b>
+            <span id="coopSplit" style="margin-left:10px;color:var(--dim)"></span>
+          </div>
+          <div id="distBars" style="margin-top:10px"></div>
+          <div class="lbl" style="margin-top:12px">System-1 Rationale · Top Signals</div>
+          <div id="signals" class="signals"></div>
         </div>
 
-        <!-- WROOM Dual-nRF24L01+ 126-Channel (2400 - 2525 MHz) Spectrum & Ghost Band -->
-        <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-2">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <span class="text-xs font-mono uppercase tracking-wider text-[var(--muted-foreground)]">Node 1: ESP32-WROOM • Core 1 SPI Loop</span>
-              <h2 class="text-base font-semibold">Dual nRF24L01+ 126-Ch RPD Carrier Spectrum (2400–2525 MHz)</h2>
-            </div>
-            <div class="flex items-center gap-3 text-xs font-mono">
-              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-sky-500 inline-block"></span> nRF#1 VSPI (2400-2462)</span>
-              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block"></span> nRF#2 HSPI (2463-2483)</span>
-              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block"></span> Ghost Band (2484-2525MHz)</span>
-            </div>
+        <!-- Spectrum waterfall -->
+        <div class="card">
+          <div class="section-title">
+            <div><div class="lbl">Node 1 · WROOM Dual nRF24L01+ · Live RF Waterfall</div><div class="h2">2.4 GHz 126-Ch RPD + 5 GHz Wi-Fi</div></div>
+            <span id="ghostBadge" class="pill mono">GHOST BAND: quiet</span>
           </div>
-
-          <canvas id="nrfSpectrumCanvas" width="680" height="125" class="w-full h-32 rounded-lg bg-[var(--background)] border border-[var(--border)]"></canvas>
-
-          <div class="flex flex-wrap justify-between text-xs font-mono text-[var(--muted-foreground)]">
-            <span>2400 MHz (Ch 0 • BLE 37)</span>
-            <span>2426 MHz (Ch 26 • BLE 38)</span>
-            <span>2462 MHz (Wi-Fi Ch 11)</span>
-            <span>2480 MHz (BLE 39)</span>
-            <span class="text-rose-500 font-semibold">2485–2525 MHz (Ghost Band Ch 85–125)</span>
+          <canvas id="waterfall" width="720" height="200"></canvas>
+          <div class="scale"><span>2400</span><span>2426</span><span>2450</span><span>2480</span><span class="mono" style="color:var(--rose)">2485–2525 (Ghost)</span></div>
+          <div class="spectrum-legend">
+            <span><i class="swatch" style="background:#0ea5e9"></i>nRF active (2.4 GHz)</span>
+            <span><i class="swatch" style="background:#f43f5e"></i>Ghost band</span>
+            <span><i class="swatch" style="background:#f59e0b"></i>Wi-Fi 5 GHz</span>
+            <span id="subghzNote" class="mono" style="color:var(--dim)">Sub-GHz: quiet</span>
           </div>
         </div>
       </div>
 
-      <!-- Right 5 cols: Interactive 3-Node Spatial RSSI Trilateration Radar -->
-      <div class="lg:col-span-5 bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 flex flex-col justify-between space-y-3">
-        <div class="flex items-center justify-between">
-          <div>
-            <span class="text-xs font-mono uppercase tracking-wider text-[var(--muted-foreground)]">3-Anchor RSSI Trilateration • Click/Drag Target</span>
-            <h2 class="text-base font-semibold">Physical Perimeter Spatial Radar (6.0m × 5.2m)</h2>
-          </div>
-          <span id="radar-lock-badge" class="text-xs font-mono px-2 py-0.5 rounded border border-[var(--border)] bg-[var(--secondary)]">
-            PASSIVE TRACK
-          </span>
+      <!-- Radar -->
+      <div class="card" style="display:flex;flex-direction:column">
+        <div class="section-title">
+          <div><div class="lbl">3-Anchor RSSI Trilateration</div><div class="h2">Physical Perimeter Radar</div></div>
+          <span id="radarBadge" class="pill mono">NO TARGET</span>
         </div>
-
-        <div class="relative">
-          <canvas id="radarCanvas" width="460" height="330" class="w-full rounded-lg bg-[var(--background)] border border-[var(--border)] cursor-crosshair"></canvas>
-        </div>
-
-        <div class="grid grid-cols-3 gap-2 text-center font-mono text-xs">
-          <div class="p-2 rounded-lg bg-[var(--background)] border border-[var(--border)]">
-            <div class="text-[var(--muted-foreground)]">Anchor A: WROOM</div>
-            <div id="rssi-wroom" class="text-sm font-bold text-sky-500">-58 dBm</div>
-            <div id="dist-wroom" class="text-xs text-[var(--muted-foreground)]">2.6 m</div>
-          </div>
-          <div class="p-2 rounded-lg bg-[var(--background)] border border-[var(--border)]">
-            <div class="text-[var(--muted-foreground)]">Anchor B: ESP32-C5</div>
-            <div id="rssi-c5" class="text-sm font-bold text-amber-500">-61 dBm</div>
-            <div id="dist-c5" class="text-xs text-[var(--muted-foreground)]">3.0 m</div>
-          </div>
-          <div class="p-2 rounded-lg bg-[var(--background)] border border-[var(--border)]">
-            <div class="text-[var(--muted-foreground)]">Anchor C: S3 Sense</div>
-            <div id="rssi-s3" class="text-sm font-bold text-emerald-500">-55 dBm</div>
-            <div id="dist-s3" class="text-xs text-[var(--muted-foreground)]">2.2 m</div>
-          </div>
+        <canvas id="radar" width="440" height="400" style="flex:1"></canvas>
+        <div class="stat-grid" style="margin-top:10px">
+          <div class="stat"><div class="sv" id="dist0" style="color:var(--sky)">— m</div><div class="sk">WROOM dist</div></div>
+          <div class="stat"><div class="sv" id="dist1" style="color:var(--amber)">— m</div><div class="sk">C5 dist</div></div>
+          <div class="stat"><div class="sv" id="dist2" style="color:var(--primary)">— m</div><div class="sk">S3 dist</div></div>
         </div>
       </div>
     </div>
 
-    <!-- Bottom Grid: The 3 Hardware Nodes + BLE De-Anonymizer & Hermit Unikernel Sandbox -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-      <!-- Node 1: ESP32-WROOM + Dual nRF24 -->
-      <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3">
-        <div class="flex items-center justify-between">
-          <div>
-            <span class="text-xs font-mono text-sky-500 font-semibold">NODE 0x01 • XTensa LX6</span>
-            <h3 class="text-sm font-bold">ESP32-WROOM + 2× nRF24L01+</h3>
-          </div>
-          <span id="wroom-SubMode" class="text-xs font-mono px-2 py-0.5 rounded bg-[var(--secondary)]">VSPI + HSPI</span>
+    <!-- ===== Pillars ===== -->
+    <div class="card">
+      <div class="lbl" style="margin-bottom:9px">Mission Pillars</div>
+      <div class="pillars">
+        <div class="pillar" data-p="detect" id="pillar-detect">
+          <div class="pname">DETECT</div><div class="psub" id="detectSub">idle</div>
+          <div class="lvlbars" id="detectLvl"></div>
         </div>
-
-        <div class="space-y-1.5 text-xs font-mono">
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">Internal Radio (Core 0):</span>
-            <span id="wroom-int-role">BT Classic + BLE Ch 39</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">nRF24 #1 (VSPI GPIO 18-23):</span>
-            <span id="wroom-nrf1-role" class="text-sky-500">Sweep 2400–2462 MHz</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">nRF24 #2 (HSPI GPIO 12-16):</span>
-            <span id="wroom-nrf2-role" class="text-amber-500">Sweep 2463–2525 MHz</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">BT Classic (BR/EDR) Found:</span>
-            <span id="wroom-bt-classic">0 devices</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">Ghost-Band / ESB HID Hits:</span>
-            <span id="wroom-ghost-hits">0 / 0 frames</span>
-          </div>
+        <div class="pillar" data-p="deceive" id="pillar-deceive">
+          <div class="pname">DECEIVE</div><div class="psub" id="deceiveSub">decoys armed</div>
         </div>
-
-        <!-- BLE MAC Rotation De-Anonymizer Box -->
-        <div class="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--border)] space-y-1 font-mono text-xs">
-          <div class="flex items-center justify-between">
-            <span class="text-[var(--muted-foreground)]">BLE De-Anonymizer (FNV-1a):</span>
-            <button onclick="rotateBleMac()" class="px-2 py-0.5 rounded border border-[var(--border)] bg-[var(--secondary)] hover:opacity-80">
-              Simulate MAC Rotate
-            </button>
-          </div>
-          <div id="ble-mac-display" class="text-xs">MAC: 64:A2:11:09:BC:01 → 51:F9:88:3C:10:FE</div>
-          <div class="text-emerald-500 font-semibold">Identity Hash: 0x9F4A2C18 (Persistent!)</div>
+        <div class="pillar" data-p="defend" id="pillar-defend">
+          <div class="pname">DEFEND</div><div class="psub" id="defendSub">standby</div>
+        </div>
+        <div class="pillar" data-p="prove" id="pillar-prove">
+          <div class="pname">PROVE</div><div class="psub" id="proveSub">0 sealed</div>
         </div>
       </div>
-
-      <!-- Node 2: ESP32-C5 (4MB Flash, RISC-V) -->
-      <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3">
-        <div class="flex items-center justify-between">
-          <div>
-            <span class="text-xs font-mono text-amber-500 font-semibold">NODE 0x02 • RISC-V 240MHz</span>
-            <h3 class="text-sm font-bold">ESP32-C5 (5GHz Wi-Fi 6 + Zigbee)</h3>
-          </div>
-          <span id="c5-freq-badge" class="text-xs font-mono px-2 py-0.5 rounded bg-[var(--secondary)]">80 MHz</span>
-        </div>
-
-        <div class="space-y-1.5 text-xs font-mono">
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">Radio Schedule:</span>
-            <span id="c5-schedule" class="text-amber-500">DUAL_BAND_SWEEP</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">Active 5GHz Channels:</span>
-            <span id="c5-channels">36, 44, 149, 157</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">5GHz Deauth / EAPOL:</span>
-            <span id="c5-deauth">0 fps / 0 EAPOL</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">802.15.4 (Zigbee/Thread):</span>
-            <span id="c5-zigbee">PAN Ch 15/20/25 (4 fps)</span>
-          </div>
-        </div>
-
-        <!-- 384KB SRAM Budget Bar -->
-        <div class="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--border)] space-y-1.5 font-mono text-xs">
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">384 KB Internal SRAM Budget:</span>
-            <span id="c5-sram-label">Ring: 96KB | Free: 220KB</span>
-          </div>
-          <div class="w-full h-3 rounded overflow-hidden flex bg-[var(--secondary)]">
-            <div id="c5-sram-ring" class="bg-amber-500 h-full transition-all duration-300" style="width: 25%"></div>
-            <div class="bg-sky-500 h-full" style="width: 18%"></div>
-          </div>
-          <div class="flex justify-between text-[var(--muted-foreground)] text-xs">
-            <span>■ PCAP RingBuf</span>
-            <span>■ RISC-V Stack/MAC (68KB)</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Node 3: XIAO ESP32-S3 Sense (8MB PSRAM + Cam/Mic) -->
-      <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 space-y-3">
-        <div class="flex items-center justify-between">
-          <div>
-            <span class="text-xs font-mono text-emerald-500 font-semibold">NODE 0x03 • Dual LX7 + 8MB PSRAM</span>
-            <h3 class="text-sm font-bold">XIAO ESP32-S3 Sense (Cam/Mic)</h3>
-          </div>
-          <span id="s3-cam-badge" class="text-xs font-mono px-2 py-0.5 rounded bg-[var(--secondary)]">CAM/MIC: OFF</span>
-        </div>
-
-        <div class="space-y-1.5 text-xs font-mono">
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">Sensor Sub-Mode:</span>
-            <span id="s3-submode" class="text-emerald-500">DEEP_PCAP_BUFFER</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">2.4GHz Wi-Fi / Active GATT:</span>
-            <span id="s3-gatt">Ch 1,6,11 / Standby</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">OV2640 Camera + PDM Mic:</span>
-            <span id="s3-fusion-status">Hardware Power-Gated (Privacy)</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">uConsole AIOv2 Sub-GHz:</span>
-            <span id="uconsole-subghz">433.92 / 915 MHz Quiet</span>
-          </div>
-        </div>
-
-        <!-- 8MB Octal PSRAM Dynamic Partition Bar -->
-        <div class="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--border)] space-y-1.5 font-mono text-xs">
-          <div class="flex justify-between">
-            <span class="text-[var(--muted-foreground)]">8192 KB Octal PSRAM Layout:</span>
-            <span id="s3-psram-label">PCAP: 7.0MB | Cam: 0MB</span>
-          </div>
-          <div class="w-full h-3 rounded overflow-hidden flex bg-[var(--secondary)]">
-            <div id="s3-bar-pcap" class="bg-emerald-500 h-full transition-all duration-300" style="width: 87%"></div>
-            <div id="s3-bar-gatt" class="bg-sky-500 h-full transition-all duration-300" style="width: 6%"></div>
-            <div id="s3-bar-cam" class="bg-rose-500 h-full transition-all duration-300" style="width: 0%"></div>
-          </div>
-          <div class="flex justify-between text-[var(--muted-foreground)] text-xs">
-            <span class="text-emerald-500">■ PCAP Ring</span>
-            <span class="text-sky-500">■ GATT Cache</span>
-            <span class="text-rose-500">■ OV2640 + Mic FFT</span>
-          </div>
-        </div>
-      </div>
-
     </div>
+
+    <!-- ===== Node cards ===== -->
+    <div class="grid-nodes">
+      <!-- WROOM -->
+      <div class="card node" id="node0">
+        <div class="node-head">
+          <div><div class="node-sub" style="color:var(--sky)">NODE 0x01 · Xtensa LX6</div><div class="node-title">ESP32-WROOM + 2× nRF24</div></div>
+          <span class="onpill up" id="n0-on">ONLINE</span>
+        </div>
+        <div class="kv"><span class="k">Active Policy</span><span class="v mono" id="n0-policy">—</span></div>
+        <div class="kv"><span class="k">Primary Ch / CPU</span><span class="v" id="n0-ch">—</span></div>
+        <div class="kv"><span class="k">Free SRAM</span><span class="v" id="n0-sram">—</span></div>
+        <div class="kv"><span class="k">BLE adv / BT inq</span><span class="v" id="n0-ble">—</span></div>
+        <div class="kv"><span class="k">Ghost hits / ESB HID</span><span class="v" id="n0-ghost">—</span></div>
+        <div class="kv"><span class="k">Peak anomaly RSSI</span><span class="v" id="n0-rssi">—</span></div>
+      </div>
+      <!-- C5 -->
+      <div class="card node" id="node1">
+        <div class="node-head">
+          <div><div class="node-sub" style="color:var(--amber)">NODE 0x02 · RISC-V 240MHz</div><div class="node-title">ESP32-C5 (5GHz + Zigbee)</div></div>
+          <span class="onpill up" id="n1-on">ONLINE</span>
+        </div>
+        <div class="kv"><span class="k">Active Policy</span><span class="v mono" id="n1-policy">—</span></div>
+        <div class="kv"><span class="k">Primary Ch / CPU</span><span class="v" id="n1-ch">—</span></div>
+        <div class="kv"><span class="k">Free SRAM</span><span class="v" id="n1-sram">—</span></div>
+        <div class="kv"><span class="k">Deauth / EAPOL</span><span class="v" id="n1-deauth">—</span></div>
+        <div class="kv"><span class="k">Wi-Fi mgmt fps</span><span class="v" id="n1-mgmt">—</span></div>
+        <div class="kv"><span class="k">Zigbee PAN frames</span><span class="v" id="n1-zig">—</span></div>
+      </div>
+      <!-- S3 -->
+      <div class="card node" id="node2">
+        <div class="node-head">
+          <div><div class="node-sub" style="color:var(--primary)">NODE 0x03 · Dual LX7 · 8MB PSRAM</div><div class="node-title">XIAO ESP32-S3 Sense</div></div>
+          <span class="onpill up" id="n2-on">ONLINE</span>
+        </div>
+        <div class="kv"><span class="k">Active Policy</span><span class="v mono" id="n2-policy">—</span></div>
+        <div class="kv"><span class="k">Primary Ch / CPU</span><span class="v" id="n2-ch">—</span></div>
+        <div class="kv"><span class="k">Peak anomaly RSSI</span><span class="v" id="n2-rssi">—</span></div>
+        <div class="seg">
+          <div class="row between" style="font-family:var(--mono);font-size:10px">
+            <span class="muted">8MB Octal PSRAM</span>
+            <span id="n2-cam" class="power">CAM/MIC OFF</span>
+          </div>
+          <div class="stack" id="n2-stack"></div>
+          <div class="mini-legend">
+            <span style="color:var(--primary)">■ PCAP</span>
+            <span style="color:var(--sky)">■ GATT</span>
+            <span style="color:var(--rose)">■ Cam</span>
+            <span style="color:var(--violet)">■ Mic FFT</span>
+            <span style="color:var(--dim)">■ Free</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Bottom: forensics/secure + detections/events ===== -->
+    <div class="grid-bottom">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <!-- Forensics -->
+        <div class="card">
+          <div class="section-title">
+            <div><div class="lbl">Pillar 4 · PROVE</div><div class="h2">Forensic Hash Chain</div></div>
+            <span id="chainChip" class="chip valid">CHAIN VALID</span>
+          </div>
+          <div class="stat-grid">
+            <div class="stat"><div class="sv" id="fx-sealed" style="color:var(--primary)">0</div><div class="sk">sealed records</div></div>
+            <div class="stat"><div class="sv" id="sec-epoch" style="color:var(--sky)">0</div><div class="sk">secure epoch</div></div>
+            <div class="stat"><div class="sv" id="lora-depth" style="color:var(--amber)">0</div><div class="sk">LoRa queue</div></div>
+          </div>
+          <div class="kv" style="margin-top:8px"><span class="k">Chain tip</span><span class="chain-tip" id="fx-tip">—</span></div>
+          <div class="stat-grid" style="margin-top:8px">
+            <div class="stat"><div class="sv" id="sec-sealed" style="font-size:14px">0</div><div class="sk">frames sealed</div></div>
+            <div class="stat"><div class="sv" id="sec-accepted" style="font-size:14px">0</div><div class="sk">accepted</div></div>
+            <div class="stat"><div class="sv" id="sec-rejected" style="font-size:14px;color:var(--rose)">0</div><div class="sk">rejected (mac/replay)</div></div>
+          </div>
+        </div>
+        <!-- Detections -->
+        <div class="card">
+          <div class="lbl" style="margin-bottom:4px">IDS Detections (this tick)</div>
+          <div id="detections"><div class="empty">no active detections</div></div>
+        </div>
+      </div>
+
+      <!-- Events -->
+      <div class="card" style="display:flex;flex-direction:column">
+        <div class="lbl" style="margin-bottom:8px">Swarm Event Log</div>
+        <div id="events" class="events"><div class="empty">waiting for events…</div></div>
+      </div>
+    </div>
+
   </div>
 
-  <script>
-    const SCENARIOS = {
-      nominal: {
-        policy: "WIDE_RECON (0x01)",
-        nrfMode: "SPLIT_SPECTRUM_WATERFALL",
-        latency: "19.2 ms",
-        rationale: "RF spectrum nominal -> WROOM Dual-nRF sweeping 126MHz waterfall (nRF#1: 2400-2462, nRF#2: 2463-2525), C5 sweeping 5GHz+Zigbee, S3 in 7MB PSRAM ring buffer.",
-        probs: [
-          ["WIDE_RECON", 98],
-          ["ANOMALY_TRIAGE", 2],
-          ["SURGICAL_CAPTURE", 0],
-          ["TRIANGULATE_LOCK", 0],
-          ["SENTINEL_CORRELATE", 0],
-          ["FLOOD_JAM_SURVIVAL", 0]
-        ],
-        targetPos: { x: 2.8, y: 2.1 },
-        ghostCh: null,
-        jammed: false,
-        deauth5g: 0,
-        eapol5g: 0,
-        btClassic: 0,
-        subGhz: "433.92 / 915 MHz Quiet",
-        wroomInt: "BT Classic + BLE Ch 39",
-        wroomNrf1: "Sweep Ch 0..62 (2400-2462MHz)",
-        wroomNrf2: "Sweep Ch 63..125 (2463-2525MHz)",
-        c5Freq: "80 MHz",
-        c5Sched: "DUAL_BAND_SWEEP",
-        c5Ch: "36, 44, 149, 157",
-        c5RingPct: 25,
-        c5SramText: "Ring: 96KB | Free: 220KB",
-        s3Sub: "DEEP_PCAP_BUFFER",
-        s3Gatt: "Ch 1,6,11 / Passive",
-        s3CamOn: false,
-        s3Bars: { pcap: 87, gatt: 6, cam: 0 },
-        s3PsramText: "PCAP: 7168KB | GATT: 512KB"
-      },
-      ghost_esb: {
-        policy: "TRIANGULATE_LOCK (0x05)",
-        nrfMode: "HUNTER_KILLER_ESB",
-        latency: "24.1 ms",
-        rationale: "Covert Ghost-Band (2498 MHz / nRF Ch 98) + Unencrypted ESB HID keystroke injection spotted by WROOM nRF#1 -> Locking nRF#2 in Promiscuous ESB Sniffer (0xAA55 preamble) + 3-node spatial triangulation!",
-        probs: [
-          ["TRIANGULATE_LOCK", 96],
-          ["SURGICAL_CAPTURE", 3],
-          ["ANOMALY_TRIAGE", 1],
-          ["WIDE_RECON", 0],
-          ["SENTINEL_CORRELATE", 0],
-          ["FLOOD_JAM_SURVIVAL", 0]
-        ],
-        targetPos: { x: 1.2, y: 1.1 },
-        ghostCh: 98,
-        jammed: false,
-        deauth5g: 0,
-        eapol5g: 0,
-        btClassic: 1,
-        subGhz: "433.92 / 915 MHz Quiet",
-        wroomInt: "Triangulation Anchor A + ESP-NOW",
-        wroomNrf1: "Spotter: Sweeping Ch 85..125",
-        wroomNrf2: "SNIPER LOCKED: Ch 98 (2498MHz ESB)",
-        c5Freq: "240 MHz",
-        c5Sched: "TRIANGULATE_ANCHOR_B",
-        c5Ch: "2.4GHz Sync Anchor + Ch 149",
-        c5RingPct: 45,
-        c5SramText: "Ring: 172KB | Free: 144KB",
-        s3Sub: "ACTIVE_BLE_GATT_AUDIT",
-        s3Gatt: "Enumerating GATT UUIDs (1.5MB)",
-        s3CamOn: false,
-        s3Bars: { pcap: 75, gatt: 19, cam: 0 },
-        s3PsramText: "PCAP: 6144KB | GATT: 1536KB"
-      },
-      wifi5_deauth: {
-        policy: "SURGICAL_CAPTURE (0x03)",
-        nrfMode: "SIMULTANEOUS_3CH_BLE",
-        latency: "23.5 ms",
-        rationale: "5 GHz Wi-Fi 6 Evil Twin + Deauth flood on UNII-3 Ch 149 (5745 MHz) -> Pinning ESP32-C5 to Ch 149 @ 240MHz (220KB SRAM Ring) while S3 Sense takes over 100% of 2.4GHz and WROOM locks all 3 BLE Adv channels.",
-        probs: [
-          ["SURGICAL_CAPTURE", 95],
-          ["ANOMALY_TRIAGE", 3],
-          ["TRIANGULATE_LOCK", 2],
-          ["WIDE_RECON", 0],
-          ["SENTINEL_CORRELATE", 0],
-          ["FLOOD_JAM_SURVIVAL", 0]
-        ],
-        targetPos: { x: 4.9, y: 0.9 },
-        ghostCh: null,
-        jammed: false,
-        deauth5g: 48,
-        eapol5g: 4,
-        btClassic: 0,
-        subGhz: "433.92 / 915 MHz Quiet",
-        wroomInt: "BLE Adv Ch 39 (2480MHz) + Classic",
-        wroomNrf1: "Locked BLE Adv Ch 37 (2402MHz)",
-        wroomNrf2: "Locked BLE Adv Ch 38 (2426MHz)",
-        c5Freq: "240 MHz",
-        c5Sched: "SURGICAL_5GHZ_PIN (Ch 149)",
-        c5Ch: "PINNED: Ch 149 (5745 MHz)",
-        c5RingPct: 58,
-        c5SramText: "Ring: 220KB | Free: 76KB",
-        s3Sub: "DEEP_PCAP_BUFFER (2.4GHz Offload)",
-        s3Gatt: "Full 2.4GHz PCAP Capture",
-        s3CamOn: false,
-        s3Bars: { pcap: 92, gatt: 3, cam: 0 },
-        s3PsramText: "PCAP: 7552KB | GATT: 256KB"
-      },
-      layer1_jam: {
-        policy: "FLOOD_JAM_SURVIVAL (0x04)",
-        nrfMode: "LAYER1_JAM_TRIAGE",
-        latency: "21.4 ms",
-        rationale: "WROOM Dual-nRF24 RPD carrier energy pegged > -64dBm across 72 channels while packet decode collapsed -> Confirmed Layer-1 Physical 2.4GHz Jammer! Failing over swarm telemetry & capture to 5GHz on ESP32-C5.",
-        probs: [
-          ["FLOOD_JAM_SURVIVAL", 97],
-          ["SURGICAL_CAPTURE", 2],
-          ["ANOMALY_TRIAGE", 1],
-          ["WIDE_RECON", 0],
-          ["TRIANGULATE_LOCK", 0],
-          ["SENTINEL_CORRELATE", 0]
-        ],
-        targetPos: { x: 1.5, y: 2.3 },
-        ghostCh: null,
-        jammed: true,
-        deauth5g: 0,
-        eapol5g: 0,
-        btClassic: 0,
-        subGhz: "Wideband 2.4GHz Noise Floor +18dB",
-        wroomInt: "HW Filter Active • Jammer Profiling",
-        wroomNrf1: "RPD Carrier Map (72 Ch Pegged!)",
-        wroomNrf2: "Locating Jammer Center Freq",
-        c5Freq: "240 MHz",
-        c5Sched: "5GHZ_FAILOVER_SURVIVAL",
-        c5Ch: "5GHz Unjammed: 36, 44, 149, 165",
-        c5RingPct: 52,
-        c5SramText: "Ring: 200KB | Free: 96KB",
-        s3Sub: "DMA_FILTER_SURVIVAL",
-        s3Gatt: "Dropping Duplicate Flood Frames",
-        s3CamOn: false,
-        s3Bars: { pcap: 85, gatt: 5, cam: 0 },
-        s3PsramText: "PCAP: 6963KB | Ring Throttled"
-      },
-      proximity_fusion: {
-        policy: "SENTINEL_CORRELATE (0x06)",
-        nrfMode: "SIMULTANEOUS_3CH_BLE",
-        latency: "26.8 ms",
-        rationale: "Intruder device breached -35 dBm proximity near S3 Sense + uConsole AIOv2 RTL-SDR caught 433.92 MHz burst -> Shrinking S3 PCAP ring to 4MB, powering ON OV2640 Camera (2.5MB) + PDM Mic FFT (512KB)!",
-        probs: [
-          ["SENTINEL_CORRELATE", 94],
-          ["TRIANGULATE_LOCK", 4],
-          ["SURGICAL_CAPTURE", 2],
-          ["ANOMALY_TRIAGE", 0],
-          ["WIDE_RECON", 0],
-          ["FLOOD_JAM_SURVIVAL", 0]
-        ],
-        targetPos: { x: 3.1, y: 4.4 },
-        ghostCh: null,
-        jammed: false,
-        deauth5g: 0,
-        eapol5g: 0,
-        btClassic: 2,
-        subGhz: "ALERT: 433.92 MHz OOK Burst (-31 dBm)!",
-        wroomInt: "BT Classic SPP Skimmer + BLE Ch 39",
-        wroomNrf1: "Locked BLE Adv Ch 37 (2402MHz)",
-        wroomNrf2: "Locked BLE Adv Ch 38 (2426MHz)",
-        c5Freq: "160 MHz",
-        c5Sched: "TRIANGULATE_ANCHOR_B",
-        c5Ch: "36, 149 + 2.4GHz Sync",
-        c5RingPct: 35,
-        c5SramText: "Ring: 134KB | Free: 182KB",
-        s3Sub: "CAM_AUDIO_CORRELATE",
-        s3Gatt: "OV2640 JPEG + 16kHz PDM Audio FFT",
-        s3CamOn: true,
-        s3Bars: { pcap: 50, gatt: 6, cam: 38 },
-        s3PsramText: "PCAP: 4096KB | Cam+Mic: 3072KB"
-      }
-    };
+<script>
+"use strict";
+/* ============================================================
+   Ferrum CyberSwarm — live WebSocket dashboard client
+   Consumes SwarmSnapshot JSON from /ws (~10 Hz), sends OperatorCommand.
+   ============================================================ */
 
-    let currentScenarioKey = 'nominal';
-    let targetPos = { x: 2.8, y: 2.1 }; // in meters inside 6.0m x 5.2m room
-    let tickCount = 0;
+const $ = (id) => document.getElementById(id);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
 
-    // Anchor coordinates in meters
-    const ANCHORS = [
-      { id: "WROOM (+2×nRF24)", x: 0.6, y: 0.6, color: "#0ea5e9" },
-      { id: "ESP32-C5 (5GHz)",  x: 5.4, y: 0.6, color: "#f59e0b" },
-      { id: "XIAO S3 Sense",    x: 3.0, y: 4.7, color: "#10b981" }
-    ];
+/* ---------- WebSocket with auto-reconnect ---------- */
+let ws = null, reconnectDelay = 500, connected = false;
+let latest = null;              // most recent snapshot
+const prettySignal = {
+  jam_ratio: "jam", proximity: "proximity", ghost_esb: "ghost/ESB",
+  deauth_eapol: "deauth/EAPOL", bt_ble: "BT/BLE", subghz: "sub-GHz"
+};
 
-    function setScenario(key) {
-      currentScenarioKey = key;
-      const sc = SCENARIOS[key];
-      targetPos = { ...sc.targetPos };
+function setStatus(state, msg) {
+  const d = $("statusDot");
+  d.className = "status-dot " + state;
+  $("connMsg").textContent = msg;
+}
 
-      document.querySelectorAll('.scenario-btn').forEach(btn => {
-        btn.className = "scenario-btn text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition";
-      });
-      const activeBtn = document.getElementById('btn-' + key);
-      if (activeBtn) {
-        activeBtn.className = "scenario-btn text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--primary)] text-[var(--primary-foreground)] font-semibold transition";
-      }
+function connect() {
+  const url = `ws://${location.host}/ws`;
+  setStatus("connecting", `connecting to ${url} …`);
+  try { ws = new WebSocket(url); } catch (e) { scheduleReconnect(); return; }
 
-      updateDashboardUI();
+  ws.onopen = () => {
+    connected = true; reconnectDelay = 500;
+    setStatus("live", `live · ${url}`);
+  };
+  ws.onmessage = (ev) => {
+    let snap; try { snap = JSON.parse(ev.data); } catch (e) { return; }
+    latest = snap;
+    try { render(snap); } catch (e) { console.error("render error", e); }
+  };
+  ws.onclose = () => { connected = false; setStatus("down", "disconnected — reconnecting…"); scheduleReconnect(); };
+  ws.onerror = () => { try { ws.close(); } catch (e) {} };
+}
+function scheduleReconnect() {
+  reconnectDelay = Math.min(reconnectDelay * 1.7, 8000);
+  setTimeout(connect, reconnectDelay);
+}
+
+/* ---------- Operator commands ---------- */
+function sendCmd(cmd) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(cmd));
+}
+function inject(name) { sendCmd({ InjectAdversary: name }); }
+function clearAdv(id) { sendCmd({ ClearAdversary: id }); }
+function forcePolicy() { sendCmd({ ForcePolicy: parseInt($("policySel").value, 10) }); }
+function setScenario(name) { sendCmd({ SetScenario: name }); }
+function setHz(hz) { sendCmd({ SetTickHz: hz }); }
+let paused = false;
+function togglePause() { sendCmd(paused ? "Resume" : "Pause"); }
+
+/* ============================================================
+   Rendering
+   ============================================================ */
+function render(s) {
+  renderHeader(s);
+  renderDecision(s.decision);
+  renderPillars(s.pillars);
+  renderNodes(s.nodes);
+  renderForensics(s);
+  renderDetections(s.detections);
+  renderEvents(s.events);
+  // waterfall row + radar target are consumed by the animation loop
+  pushWaterfall(s.spectrum);
+  updateRadarTarget(s.radar);
+}
+
+function renderHeader(s) {
+  const sc = s.scenario || {};
+  $("scenarioPill").textContent = "SCENARIO " + (sc.name || "—");
+  paused = !!sc.paused;
+  $("pausePill").textContent = paused ? "PAUSED" : "RUNNING";
+  $("pausePill").className = "pill mono" + (paused ? " warn" : " ok");
+  $("pauseBtn").textContent = paused ? "Resume" : "Pause";
+  const secs = ((sc.elapsed_ms || 0) / 1000).toFixed(1);
+  $("tickPill").textContent = `t${s.tick} · ${secs}s · ${sc.tick_hz || 0} Hz`;
+  const lq = s.lora_queue_depth || 0;
+  $("loraPill").textContent = `LoRa Q: ${lq}`;
+  $("loraPill").className = "pill mono" + (lq > 0 ? " warn" : "");
+  // scenario active button
+  ["quiet","red-team-incursion"].forEach(n => {
+    const b = $("scn-" + n); if (b) b.classList.toggle("active", sc.name === n);
+  });
+  // active adversaries
+  const list = $("advList");
+  const advs = sc.active_adversaries || [];
+  if (advs.length === 0) { list.innerHTML = '<span class="empty">none injected</span>'; }
+  else {
+    list.innerHTML = advs.map(a =>
+      `<span class="adv-tag">${a.name} <span class="dim">#${a.id}</span><button onclick="clearAdv(${a.id})">✕</button></span>`
+    ).join("");
+  }
+}
+
+const POLICY_SHORT = {
+  WIDE_RECON:"WIDE_RECON", ANOMALY_TRIAGE:"ANOMALY_TRIAGE", SURGICAL_CAPTURE:"SURGICAL_CAPTURE",
+  FLOOD_JAM_SURVIVAL:"FLOOD_JAM_SURVIVAL", TRIANGULATE_LOCK:"TRIANGULATE_LOCK",
+  SENTINEL_CORRELATE:"SENTINEL_CORRELATE", IDS_ENFORCE:"IDS_ENFORCE", HONEYPOT_LURE:"HONEYPOT_LURE",
+  FORENSIC_LOCKDOWN:"FORENSIC_LOCKDOWN", MESH_SURVIVE:"MESH_SURVIVE"
+};
+const DEFENSIVE = new Set(["FLOOD_JAM_SURVIVAL","IDS_ENFORCE","FORENSIC_LOCKDOWN","MESH_SURVIVE"]);
+
+function renderDecision(d) {
+  if (!d) return;
+  const pn = $("policyName");
+  pn.textContent = d.selected_policy;
+  pn.classList.toggle("defend", DEFENSIVE.has(d.selected_policy));
+  $("confText").textContent = `confidence ${d.confidence_pct}%`;
+  $("nrfMode").textContent = d.selected_nrf_policy;
+  $("coopSplit").textContent = d.cooperative_band_split ? "· cooperative band-split ON" : "";
+
+  const sb = $("srcBadge");
+  if (d.escalated) { sb.textContent = "SYSTEM-2 ESCALATED"; sb.className = "srcbadge esc"; }
+  else { sb.textContent = (d.source || "system1").toUpperCase(); sb.className = "srcbadge"; }
+
+  // distribution bars (6 policies)
+  const dist = d.distribution || [];
+  $("distBars").innerHTML = dist.map(([name, pct]) => {
+    const sel = name === d.selected_policy;
+    return `<div class="bar-row ${sel ? "sel" : ""}">
+      <span class="name">${sel ? "▸ " : ""}${name}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+      <span class="pct">${pct}%</span></div>`;
+  }).join("");
+
+  // top signals
+  const sigs = d.top_signals || [];
+  $("signals").innerHTML = sigs.map(([k, share]) =>
+    `<span class="sig">${prettySignal[k] || k} <b>${share}%</b></span>`
+  ).join("") || '<span class="empty">no signal energy</span>';
+}
+
+function renderPillars(p) {
+  if (!p) return;
+  const detect = $("pillar-detect");
+  detect.classList.toggle("on", !!p.detect);
+  $("detectSub").textContent = p.detect ? `level ${p.detect_level}/5` : "idle";
+  $("detectLvl").innerHTML = Array.from({length:5}, (_,i) =>
+    `<i class="${i < (p.detect_level||0) ? "f" : ""}"></i>`).join("");
+
+  const dec = $("pillar-deceive");
+  dec.classList.toggle("on", !!p.deceive);
+  $("deceiveSub").textContent = p.deceive ? `${p.deceive_trips} tripwire hits` : "decoys armed";
+
+  const def = $("pillar-defend");
+  def.classList.toggle("on", !!p.defend);
+  $("defendSub").textContent = p.defend ? "ACTIVE DEFENCE" : "standby";
+
+  const pr = $("pillar-prove");
+  pr.classList.toggle("on", !!p.prove);
+  $("proveSub").textContent = `${p.prove_records || 0} sealed`;
+}
+
+function renderNodes(nodes) {
+  if (!nodes) return;
+  nodes.forEach((n, i) => {
+    const card = $("node" + i);
+    card.classList.toggle("offline", !n.online);
+    const onp = $(`n${i}-on`);
+    onp.textContent = n.online ? "ONLINE" : "OFFLINE";
+    onp.className = "onpill " + (n.online ? "up" : "dn");
+    const pol = $(`n${i}-policy`); if (pol) pol.textContent = n.active_policy;
+    const ch = $(`n${i}-ch`); if (ch) ch.textContent = `ch ${n.primary_channel} · ${n.cpu_load_pct}%`;
+  });
+  // node 0 WROOM
+  const w = nodes[0];
+  $("n0-sram").textContent = `${w.free_sram_kb} KB`;
+  $("n0-ble").textContent = `${w.ble_adv_fps} fps / ${w.bt_classic_inq_cnt}`;
+  $("n0-ghost").textContent = `${w.ghost_band_hits} / ${w.esb_hid_frames}`;
+  $("n0-rssi").textContent = `${w.peak_anomaly_rssi} dBm`;
+  // node 1 C5
+  const c = nodes[1];
+  $("n1-sram").textContent = `${c.free_sram_kb} KB`;
+  $("n1-deauth").textContent = `${c.deauth_disassoc_cnt} / ${c.eapol_handshake_cnt}`;
+  $("n1-mgmt").textContent = `${c.wifi_mgmt_fps} fps`;
+  $("n1-zig").textContent = `${c.zigbee_pan_frames}`;
+  // node 2 S3 + PSRAM
+  const s = nodes[2];
+  $("n2-rssi").textContent = `${s.peak_anomaly_rssi} dBm`;
+  renderPsram(s.psram);
+}
+
+function renderPsram(ps) {
+  const stack = $("n2-stack");
+  const cam = $("n2-cam");
+  if (!ps) { stack.innerHTML = ""; cam.textContent = "—"; cam.className = "power"; return; }
+  const total = (ps.pcap_ringbuf_kb + ps.ble_gatt_cache_kb + ps.camera_fb_kb + ps.pdm_audio_fft_kb + ps.unallocated_kb) || 1;
+  const seg = (kb, color) => `<span style="width:${(kb/total*100).toFixed(2)}%;background:${color}"></span>`;
+  stack.innerHTML =
+    seg(ps.pcap_ringbuf_kb, "#10b981") +
+    seg(ps.ble_gatt_cache_kb, "#0ea5e9") +
+    seg(ps.camera_fb_kb, "#f43f5e") +
+    seg(ps.pdm_audio_fft_kb, "#a78bfa") +
+    seg(ps.unallocated_kb, "#334155");
+  const active = ps.camera_powered || ps.pdm_mic_active;
+  cam.textContent = active
+    ? `CAM ${ps.camera_powered ? "ON" : "·"} / MIC ${ps.pdm_mic_active ? "ON" : "·"}`
+    : "CAM/MIC OFF";
+  cam.className = "power" + (active ? " on" : "");
+}
+
+function renderForensics(s) {
+  const fx = s.forensics || {}, sec = s.secure || {};
+  $("fx-sealed").textContent = fx.sealed_records || 0;
+  $("fx-tip").textContent = fx.chain_tip ? fx.chain_tip.slice(0, 24) + "…" : "— (no seal yet)";
+  const chip = $("chainChip");
+  if (!fx.chain_tip) { chip.textContent = "NO CHAIN"; chip.className = "chip valid"; chip.style.opacity = .5; }
+  else { chip.style.opacity = 1; chip.textContent = fx.chain_valid ? "CHAIN VALID" : "CHAIN TAMPERED"; chip.className = "chip " + (fx.chain_valid ? "valid" : "invalid"); }
+  $("sec-epoch").textContent = sec.epoch || 0;
+  $("sec-sealed").textContent = sec.frames_sealed || 0;
+  $("sec-accepted").textContent = sec.frames_accepted || 0;
+  $("sec-rejected").textContent = (sec.rejected_bad_mac || 0) + (sec.rejected_replay || 0);
+  $("lora-depth").textContent = s.lora_queue_depth || 0;
+}
+
+function renderDetections(dets) {
+  const box = $("detections");
+  if (!dets || dets.length === 0) { box.innerHTML = '<div class="empty">no active detections</div>'; return; }
+  box.innerHTML = dets.map(d =>
+    `<div class="det r${d.severity_rank}">
+      <div class="dt">${d.title}<span class="sev sev-${d.severity_rank}">${d.severity}</span></div>
+      <div class="de">${d.explanation}</div>
+      <div class="dm">${d.mitre} · ${d.rule_id} → ${d.recommended_policy}</div>
+    </div>`).join("");
+}
+
+let eventSeen = new Set(), eventHtml = [];
+function renderEvents(evs) {
+  if (!evs || evs.length === 0) return;
+  for (const e of evs) {
+    const key = `${e.tick}|${e.message}`;
+    if (eventSeen.has(key)) continue;
+    eventSeen.add(key);
+    eventHtml.push(`<div class="ev ${e.level}"><span class="et">t${e.tick}</span><span class="em">${escapeHtml(e.message)}</span></div>`);
+  }
+  if (eventHtml.length > 200) eventHtml = eventHtml.slice(-200);
+  if (eventHtml.length) $("events").innerHTML = eventHtml.join("");
+}
+function escapeHtml(s){ return String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+/* ============================================================
+   Spectrum waterfall (scrolling canvas)
+   ============================================================ */
+const wf = $("waterfall");
+const wfx = wf.getContext("2d");
+const WF_W = wf.width, WF_H = wf.height;
+const NRF_H = Math.floor(WF_H * 0.68);   // 2.4 GHz band height
+const WIFI_Y = NRF_H + 2;
+const WIFI_H = WF_H - WIFI_Y;
+let wfReady = false;
+function initWaterfall() {
+  wfx.fillStyle = "#060a11"; wfx.fillRect(0, 0, WF_W, WF_H);
+  wfReady = true;
+}
+initWaterfall();
+
+// 5GHz channel domain (UNII): map 36..165 across width
+function wifi5X(ch) { return clamp((ch - 36) / (165 - 36), 0, 1) * WF_W; }
+
+function pushWaterfall(spec) {
+  if (!spec) return;
+  // scroll the nRF region up by 1px
+  const img = wfx.getImageData(0, 1, WF_W, NRF_H - 1);
+  wfx.putImageData(img, 0, 0);
+  // draw newest nRF row at bottom of the nRF region
+  const y = NRF_H - 1;
+  const nrf = spec.nrf_active || [];
+  const colW = WF_W / 126;
+  // base dim background row
+  wfx.fillStyle = "#070c15"; wfx.fillRect(0, y, WF_W, 1);
+  for (let ch = 0; ch < 126; ch++) {
+    const ghost = ch >= 85;
+    const active = nrf[ch];
+    let color;
+    if (active) color = ghost ? "#fb3b57" : "#17c3ec";
+    else color = ghost ? "rgba(244,63,94,0.10)" : "rgba(14,165,233,0.05)";
+    wfx.fillStyle = color;
+    wfx.fillRect(ch * colW, y, Math.max(1, colW), 1);
+  }
+
+  // 5GHz strip: full repaint each tick (fewer channels, shows live bars + short history fade)
+  // fade existing
+  wfx.fillStyle = "rgba(6,10,17,0.28)";
+  wfx.fillRect(0, WIFI_Y, WF_W, WIFI_H);
+  const w5 = spec.wifi5 || [];
+  for (const [ch, rssi] of w5) {
+    const x = wifi5X(ch);
+    const strength = clamp((rssi + 95) / 60, 0.05, 1); // -95..-35 -> 0..1
+    const bh = strength * WIFI_H;
+    wfx.fillStyle = `rgba(245,158,11,${0.35 + strength * 0.6})`;
+    wfx.fillRect(x - 3, WIFI_Y + (WIFI_H - bh), 6, bh);
+  }
+  // separator line
+  wfx.fillStyle = "rgba(148,163,184,0.18)";
+  wfx.fillRect(0, NRF_H, WF_W, 1);
+
+  // ghost band badge + subghz note
+  const gb = spec.ghost_band_active || 0;
+  const gbBadge = $("ghostBadge");
+  gbBadge.textContent = gb > 0 ? `GHOST BAND: ${gb} ch ACTIVE` : "GHOST BAND: quiet";
+  gbBadge.className = "pill mono" + (gb > 0 ? " alert" : "");
+  const sg = spec.subghz_burst_mhz;
+  $("subghzNote").textContent = sg != null ? `Sub-GHz BURST: ${sg} MHz` : "Sub-GHz: quiet";
+  $("subghzNote").style.color = sg != null ? "var(--rose)" : "var(--dim)";
+}
+
+/* ============================================================
+   Trilateration radar (animated)
+   ============================================================ */
+const rc = $("radar");
+const rx = rc.getContext("2d");
+const RW = rc.width, RH = rc.height;
+let radarData = { has_target: false, anchors: [[0,0],[6,0],[3,5.2]], dists: [0,0,0] };
+let shownTarget = { x: 3, y: 2.6 };   // smoothed display position
+let targetTarget = { x: 3, y: 2.6 };  // snapshot position
+let hasTarget = false, pulseT = 0;
+
+// metres -> canvas, domain padded around anchors
+const DOMX = [-0.6, 6.6], DOMY = [-0.6, 5.8];
+const mX = (m) => ((m - DOMX[0]) / (DOMX[1] - DOMX[0])) * (RW - 50) + 25;
+const mY = (m) => ((m - DOMY[0]) / (DOMY[1] - DOMY[0])) * (RH - 50) + 25;
+
+function updateRadarTarget(r) {
+  if (!r) return;
+  radarData.anchors = r.anchors || radarData.anchors;
+  radarData.dists = r.anchor_dist_m || radarData.dists;
+  hasTarget = !!r.has_target;
+  if (hasTarget) { targetTarget.x = r.target_x; targetTarget.y = r.target_y; }
+  const badge = $("radarBadge");
+  badge.textContent = hasTarget ? "TARGET LOCKED" : "NO TARGET";
+  badge.className = "pill mono" + (hasTarget ? " alert" : "");
+  const d = radarData.dists;
+  $("dist0").textContent = hasTarget ? d[0].toFixed(2) + " m" : "— m";
+  $("dist1").textContent = hasTarget ? d[1].toFixed(2) + " m" : "— m";
+  $("dist2").textContent = hasTarget ? d[2].toFixed(2) + " m" : "— m";
+}
+
+const ANCHOR_META = [
+  { name: "WROOM", color: "#0ea5e9" },
+  { name: "C5",    color: "#f59e0b" },
+  { name: "S3",    color: "#10b981" },
+];
+
+function drawRadar() {
+  rx.clearRect(0, 0, RW, RH);
+  // grid
+  rx.strokeStyle = "rgba(148,163,184,0.10)"; rx.lineWidth = 1;
+  for (let gx = 0; gx <= 6; gx++) { const x = mX(gx); rx.beginPath(); rx.moveTo(x, mY(DOMY[0])); rx.lineTo(x, mY(DOMY[1])); rx.stroke(); }
+  for (let gy = 0; gy <= 5; gy++) { const y = mY(gy); rx.beginPath(); rx.moveTo(mX(DOMX[0]), y); rx.lineTo(mX(DOMX[1]), y); rx.stroke(); }
+
+  // smooth target toward snapshot
+  shownTarget.x += (targetTarget.x - shownTarget.x) * 0.18;
+  shownTarget.y += (targetTarget.y - shownTarget.y) * 0.18;
+  const tx = mX(shownTarget.x), ty = mY(shownTarget.y);
+
+  // anchors + distance rings
+  radarData.anchors.forEach((a, i) => {
+    const ax = mX(a[0]), ay = mY(a[1]);
+    const meta = ANCHOR_META[i] || { name: "?", color: "#94a3b8" };
+    if (hasTarget) {
+      // range ring sized by trilateration distance (metres -> px scale from x axis)
+      const scale = (RW - 50) / (DOMX[1] - DOMX[0]);
+      const r = radarData.dists[i] * scale;
+      rx.strokeStyle = meta.color + "40"; rx.lineWidth = 1.4;
+      rx.beginPath(); rx.arc(ax, ay, r, 0, Math.PI * 2); rx.stroke();
+      // bearing line
+      rx.strokeStyle = meta.color + "66"; rx.setLineDash([4, 4]);
+      rx.beginPath(); rx.moveTo(ax, ay); rx.lineTo(tx, ty); rx.stroke(); rx.setLineDash([]);
     }
+    // anchor node
+    rx.fillStyle = meta.color;
+    rx.beginPath(); rx.arc(ax, ay, 6, 0, Math.PI * 2); rx.fill();
+    rx.strokeStyle = meta.color + "55"; rx.lineWidth = 2;
+    rx.beginPath(); rx.arc(ax, ay, 9, 0, Math.PI * 2); rx.stroke();
+    rx.font = "bold 11px ui-monospace, monospace"; rx.fillStyle = meta.color;
+    rx.textAlign = "center";
+    rx.fillText(meta.name, ax, ay < RH / 2 ? ay - 14 : ay + 22);
+  });
 
-    function distToRssi(distMeters) {
-      const d = Math.max(0.35, distMeters);
-      return Math.round(-38 - 22 * Math.log10(d));
-    }
+  // target
+  if (hasTarget) {
+    pulseT += 0.08;
+    const pr = 8 + (Math.sin(pulseT) + 1) * 7;
+    rx.fillStyle = "rgba(244,63,94,0.18)";
+    rx.beginPath(); rx.arc(tx, ty, pr, 0, Math.PI * 2); rx.fill();
+    rx.fillStyle = "#f43f5e";
+    rx.beginPath(); rx.arc(tx, ty, 6, 0, Math.PI * 2); rx.fill();
+    rx.strokeStyle = "rgba(244,63,94,0.9)"; rx.lineWidth = 1.5;
+    rx.beginPath(); rx.moveTo(tx - 13, ty); rx.lineTo(tx + 13, ty); rx.moveTo(tx, ty - 13); rx.lineTo(tx, ty + 13); rx.stroke();
+    rx.font = "bold 11px ui-monospace, monospace"; rx.fillStyle = "#fda4af"; rx.textAlign = "left";
+    rx.fillText(`(${shownTarget.x.toFixed(1)}, ${shownTarget.y.toFixed(1)}) m`, clamp(tx + 14, 6, RW - 110), clamp(ty - 10, 14, RH - 6));
+  }
+  requestAnimationFrame(drawRadar);
+}
+requestAnimationFrame(drawRadar);
 
-    function updateDashboardUI() {
-      const sc = SCENARIOS[currentScenarioKey];
-
-      // Calculate distances & RSSI from current targetPos to the 3 anchors
-      const dWroom = Math.hypot(targetPos.x - ANCHORS[0].x, targetPos.y - ANCHORS[0].y);
-      const dC5    = Math.hypot(targetPos.x - ANCHORS[1].x, targetPos.y - ANCHORS[1].y);
-      const dS3    = Math.hypot(targetPos.x - ANCHORS[2].x, targetPos.y - ANCHORS[2].y);
-
-      const rssiWroom = distToRssi(dWroom);
-      const rssiC5    = distToRssi(dC5);
-      const rssiS3    = distToRssi(dS3);
-
-      document.getElementById('rssi-wroom').textContent = `${rssiWroom} dBm`;
-      document.getElementById('dist-wroom').textContent = `${dWroom.toFixed(1)} m`;
-      document.getElementById('rssi-c5').textContent    = `${rssiC5} dBm`;
-      document.getElementById('dist-c5').textContent    = `${dC5.toFixed(1)} m`;
-      document.getElementById('rssi-s3').textContent    = `${rssiS3} dBm`;
-      document.getElementById('dist-s3').textContent    = `${dS3.toFixed(1)} m`;
-
-      // If user drags target very close (< 1.25m / > -42 dBm) to S3 Sense, auto-trigger SentinelCorrelate!
-      const proximityBreach = rssiS3 > -42 || sc.s3CamOn;
-
-      document.getElementById('laya-latency').textContent = sc.latency;
-      document.getElementById('active-policy-badge').textContent = proximityBreach && currentScenarioKey === 'nominal'
-        ? "SENTINEL_CORRELATE (Auto-Proximity!)"
-        : sc.policy;
-      document.getElementById('active-nrf-badge').textContent = sc.nrfMode;
-      document.getElementById('laya-rationale').textContent = sc.rationale;
-
-      // Render probability bars
-      const barsContainer = document.getElementById('laya-bars');
-      barsContainer.innerHTML = sc.probs.map(([name, pct], idx) => `
-        <div class="grid grid-cols-12 items-center gap-2 text-xs font-mono">
-          <span class="col-span-4 truncate ${idx === 0 ? 'font-bold text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'}">
-            ${idx === 0 ? '✓ ' : ''}${name}
-          </span>
-          <div class="col-span-7 h-2 rounded-full bg-[var(--secondary)] overflow-hidden">
-            <div class="h-full rounded-full ${idx === 0 ? 'bg-emerald-500' : 'bg-sky-500/50'}" style="width: ${pct}%"></div>
-          </div>
-          <span class="col-span-1 text-right ${idx === 0 ? 'text-emerald-500 font-bold' : 'text-[var(--muted-foreground)]'}">${pct}%</span>
-        </div>
-      `).join('');
-
-      // Node 1 WROOM
-      document.getElementById('wroom-int-role').textContent = sc.wroomInt;
-      document.getElementById('wroom-nrf1-role').textContent = sc.wroomNrf1;
-      document.getElementById('wroom-nrf2-role').textContent = sc.wroomNrf2;
-      document.getElementById('wroom-bt-classic').textContent = `${sc.btClassic} BR/EDR devices`;
-      document.getElementById('wroom-ghost-hits').textContent = sc.ghostCh
-        ? `Ch ${sc.ghostCh} (2498MHz) / 9 ESB HID`
-        : "0 Ghost / 0 ESB frames";
-
-      // Node 2 C5
-      document.getElementById('c5-freq-badge').textContent = sc.c5Freq;
-      document.getElementById('c5-schedule').textContent = sc.c5Sched;
-      document.getElementById('c5-channels').textContent = sc.c5Ch;
-      document.getElementById('c5-deauth').textContent = `${sc.deauth5g} fps / ${sc.eapol5g} EAPOL`;
-      document.getElementById('c5-sram-ring').style.width = `${sc.c5RingPct}%`;
-      document.getElementById('c5-sram-label').textContent = sc.c5SramText;
-
-      // Node 3 S3 Sense
-      const camBadge = document.getElementById('s3-cam-badge');
-      if (proximityBreach) {
-        camBadge.textContent = "CAM + PDM MIC: ACTIVE";
-        camBadge.className = "text-xs font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-500 font-bold border border-rose-500/40";
-        document.getElementById('s3-fusion-status').textContent = "OV2640 Frame + Audio FFT Triggered!";
-        document.getElementById('s3-bar-pcap').style.width = "50%";
-        document.getElementById('s3-bar-gatt').style.width = "6%";
-        document.getElementById('s3-bar-cam').style.width = "38%";
-        document.getElementById('s3-psram-label').textContent = "PCAP: 4096KB | Cam+Mic: 3072KB";
-      } else {
-        camBadge.textContent = "CAM/MIC: OFF";
-        camBadge.className = "text-xs font-mono px-2 py-0.5 rounded bg-[var(--secondary)]";
-        document.getElementById('s3-fusion-status').textContent = "Hardware Power-Gated (Privacy)";
-        document.getElementById('s3-bar-pcap').style.width = `${sc.s3Bars.pcap}%`;
-        document.getElementById('s3-bar-gatt').style.width = `${sc.s3Bars.gatt}%`;
-        document.getElementById('s3-bar-cam').style.width = `${sc.s3Bars.cam}%`;
-        document.getElementById('s3-psram-label').textContent = sc.s3PsramText;
-      }
-      document.getElementById('s3-submode').textContent = sc.s3Sub;
-      document.getElementById('s3-gatt').textContent = sc.s3Gatt;
-      document.getElementById('uconsole-subghz').textContent = sc.subGhz;
-
-      document.getElementById('radar-lock-badge').textContent =
-        sc.policy.includes("TRIANGULATE") || proximityBreach ? "3-NODE SYNC LOCK (250ms)" : "COOPERATIVE SWEEP";
-    }
-
-    function rotateBleMac() {
-      const hex = () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase();
-      const newMac = `${hex()}:${hex()}:${hex()}:${hex()}:${hex()}:${hex()}`;
-      document.getElementById('ble-mac-display').textContent = `Rotated MAC: ${newMac} (Apple 0x004C TLV)`;
-    }
-
-    // Draw 126-channel nRF24L01+ Spectrum Canvas
-    function drawSpectrum() {
-      const canvas = document.getElementById('nrfSpectrumCanvas');
-      const ctx = canvas.getContext('2d');
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-
-      const sc = SCENARIOS[currentScenarioKey];
-      const barW = w / 126;
-
-      // Draw Ghost Band background highlight (Ch 85..125)
-      const ghostStartX = 85 * barW;
-      ctx.fillStyle = "rgba(244, 63, 94, 0.08)";
-      ctx.fillRect(ghostStartX, 0, w - ghostStartX, h);
-
-      for (let ch = 0; ch < 126; ch++) {
-        let energy = 0.08 + Math.random() * 0.08;
-
-        // Standard Wi-Fi Ch 1 (ch 12), Ch 6 (ch 37), Ch 11 (ch 62)
-        if (Math.abs(ch - 12) < 8 || Math.abs(ch - 37) < 8 || Math.abs(ch - 62) < 8) {
-          energy += 0.22 + Math.random() * 0.18;
-        }
-        // BLE Adv channels: Ch 2 (2402), Ch 26 (2426), Ch 80 (2480)
-        if (ch === 2 || ch === 26 || ch === 80) {
-          energy += 0.35 + Math.random() * 0.2;
-        }
-        // Scenario overrides
-        if (sc.jammed && ch >= 5 && ch <= 78) {
-          energy = 0.88 + Math.random() * 0.11;
-        }
-        if (sc.ghostCh && Math.abs(ch - sc.ghostCh) <= 1) {
-          energy = ch === sc.ghostCh ? 0.96 : 0.65;
-        }
-
-        const barH = Math.min(h - 10, energy * (h - 14));
-        const x = ch * barW;
-        const y = h - barH;
-
-        if (ch >= 85) {
-          ctx.fillStyle = energy > 0.5 ? "#f43f5e" : "rgba(244, 63, 94, 0.45)";
-        } else if (ch >= 63) {
-          ctx.fillStyle = sc.jammed ? "#ef4444" : "#f59e0b";
-        } else {
-          ctx.fillStyle = sc.jammed ? "#ef4444" : "#0ea5e9";
-        }
-        ctx.fillRect(x, y, Math.max(2, barW - 1), barH);
-      }
-    }
-
-    // Draw 3-Node Spatial Radar Canvas
-    function drawRadar() {
-      const canvas = document.getElementById('radarCanvas');
-      const ctx = canvas.getContext('2d');
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-
-      const mToX = (m) => (m / 6.0) * (w - 40) + 20;
-      const mToY = (m) => (m / 5.2) * (h - 40) + 20;
-
-      // Subtle grid lines
-      ctx.strokeStyle = "rgba(148, 163, 184, 0.15)";
-      ctx.lineWidth = 1;
-      for (let gx = 0; gx <= 6; gx++) {
-        const x = mToX(gx);
-        ctx.beginPath(); ctx.moveTo(x, 15); ctx.lineTo(x, h - 15); ctx.stroke();
-      }
-      for (let gy = 0; gy <= 5; gy++) {
-        const y = mToY(gy);
-        ctx.beginPath(); ctx.moveTo(15, y); ctx.lineTo(w - 15, y); ctx.stroke();
-      }
-
-      const tx = mToX(targetPos.x);
-      const ty = mToY(targetPos.y);
-
-      // Draw RSSI distance circles and bearing lines from each anchor
-      ANCHORS.forEach(a => {
-        const ax = mToX(a.x);
-        const ay = mToY(a.y);
-        const r = Math.hypot(tx - ax, ty - ay);
-
-        ctx.strokeStyle = a.color + "33";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(ax, ay, r, 0, Math.PI * 2);
-        ctx.stroke();
-
-        ctx.strokeStyle = a.color + "88";
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(ax, ay);
-        ctx.lineTo(tx, ty);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Anchor node dot
-        ctx.fillStyle = a.color;
-        ctx.beginPath();
-        ctx.arc(ax, ay, 7, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.font = "bold 12px monospace";
-        ctx.fillStyle = a.color;
-        ctx.fillText(a.id, ax - 38, ay < h / 2 ? ay - 12 : ay + 20);
-      });
-
-      // Draw Target Transmitter pulse
-      const pulse = (Math.sin(tickCount * 0.2) + 1) * 6 + 8;
-      ctx.fillStyle = "rgba(244, 63, 94, 0.25)";
-      ctx.beginPath();
-      ctx.arc(tx, ty, pulse, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = "#f43f5e";
-      ctx.beginPath();
-      ctx.arc(tx, ty, 6, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.font = "bold 12px monospace";
-      ctx.fillStyle = "#f43f5e";
-      ctx.fillText(`TARGET (${targetPos.x.toFixed(1)}m, ${targetPos.y.toFixed(1)}m)`, Math.min(w - 165, Math.max(15, tx - 60)), Math.max(22, ty - 12));
-    }
-
-    // Interactive radar drag/click handler
-    const radarCanvas = document.getElementById('radarCanvas');
-    let isDragging = false;
-    function updateTargetFromMouse(e) {
-      const rect = radarCanvas.getBoundingClientRect();
-      const scaleX = radarCanvas.width / rect.width;
-      const scaleY = radarCanvas.height / rect.height;
-      const px = (e.clientX - rect.left) * scaleX;
-      const py = (e.clientY - rect.top) * scaleY;
-
-      targetPos.x = Math.max(0.2, Math.min(5.8, ((px - 20) / (radarCanvas.width - 40)) * 6.0));
-      targetPos.y = Math.max(0.2, Math.min(5.0, ((py - 20) / (radarCanvas.height - 40)) * 5.2));
-      updateDashboardUI();
-      drawRadar();
-    }
-    radarCanvas.addEventListener('mousedown', (e) => { isDragging = true; updateTargetFromMouse(e); });
-    window.addEventListener('mousemove', (e) => { if (isDragging) updateTargetFromMouse(e); });
-    window.addEventListener('mouseup', () => { isDragging = false; });
-
-    setInterval(() => {
-      tickCount++;
-      drawSpectrum();
-      drawRadar();
-    }, 120);
-
-    setScenario('nominal');
-  </script>
+/* ---------- boot ---------- */
+connect();
+</script>
 </body>
 </html>
