@@ -151,6 +151,8 @@ In order:
 
 The six rows above are the policies **System-1 scores**. Four more wire-protocol states exist (`PolicyMode` `0x07..=0x0A`) and are reached through System-2 escalation or an operator override rather than System-1 scoring: `IDS_ENFORCE` (`0x07`), `HONEYPOT_LURE` (`0x08`), `FORENSIC_LOCKDOWN` (`0x09`, seals the evidence chain and arms camera / mic) and `MESH_SURVIVE` (`0x0A`, LoRa `FeatureVector` store-and-forward).
 
+> **Jammer outcome, honestly:** `FLOOD_JAM_SURVIVAL` is the System-1 *reactive prior* for jam-like energy — the row Laya's scoring favours while a jammer is merely suspected. It is **not** the live outcome of a confirmed jammer. A sustained Layer-1 jammer trips IDS rule `FR-JAM-001` at `Critical`, and any `Critical` detection makes System-2 escalate past the reactive prior to `FORENSIC_LOCKDOWN` (`0x09`): freeze the PCAP ring, seal the evidence block, and arm the camera / mic. So the jammer path at runtime is `FLOOD_JAM_SURVIVAL` (prior) → `FORENSIC_LOCKDOWN` (confirmed), not `FLOOD_JAM_SURVIVAL` as a terminal state.
+
 ---
 
 ## 7. Directory Structure

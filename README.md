@@ -82,6 +82,8 @@ The dashboard is a single page served by `ferrum-brain` itself and fed by a WebS
 
 The six adversary models are `jammer`, `evil-twin-deauth`, `mousejack-esb`, `ble-rotating-implant`, `subghz-replay` and `bt-skimmer`.
 
+> **Reading the jammer run:** `FLOOD_JAM_SURVIVAL` is the System-1 *reactive prior* for jam-like energy — the policy Laya leans toward while a jammer is only suspected — not the terminal outcome of a confirmed one. A sustained Layer-1 jammer trips IDS rule `FR-JAM-001` at `Critical`, and a `Critical` detection drives System-2 to escalate past that prior to `FORENSIC_LOCKDOWN`: freeze the PCAP ring, seal the evidence block, and arm the camera / mic. So on the dashboard a real jammer reads `FLOOD_JAM_SURVIVAL` → `FORENSIC_LOCKDOWN`, not `FLOOD_JAM_SURVIVAL` alone.
+
 ---
 
 ## Workspace architecture (13 crates)

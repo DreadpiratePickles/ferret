@@ -81,7 +81,8 @@ impl LayaEngine {
     ///
     /// * any `Critical` => `ForensicLockdown`, cam/mic on, confidence 99;
     /// * else the highest-severity detection at `High` or above adopts its `recommended_policy`
-    ///   (and that policy's actuation profile when it is one of the six System-1 policies);
+    ///   (and that policy's actuation profile when it is one of the six System-1 policies), with
+    ///   `confidence_pct` reset to the adopted policy's share of the System-1 distribution;
     /// * else `d` is returned unchanged.
     ///
     /// `distribution` and `rationale` keep describing the System-1 evidence that was overridden.
@@ -96,6 +97,16 @@ impl LayaEngine {
             if top.severity.rank() >= Severity::High.rank() {
                 d.selected_policy = top.recommended_policy;
                 crate::score::apply_profile(&mut d, top.recommended_policy);
+                // Report the adopted policy's own share of the System-1 distribution, not the
+                // superseded incumbent's figure. All six policies are present in `distribution`,
+                // so this normally resolves; if it somehow does not, leave the prior value.
+                if let Some((_, share)) = d
+                    .distribution
+                    .iter()
+                    .find(|(p, _)| *p == top.recommended_policy)
+                {
+                    d.confidence_pct = *share;
+                }
             }
         }
         d

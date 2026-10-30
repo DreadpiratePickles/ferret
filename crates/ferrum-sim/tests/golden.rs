@@ -1,4 +1,6 @@
-//! Seed reproducibility: the flagship scenario must hash identically on every run and platform.
+//! Seed reproducibility: the flagship scenario must hash identically on every run for the same
+//! toolchain/target. The hash folds in f32 `log10`/`round`-derived RSSI, so a different libm
+//! (another toolchain or target) can legitimately shift it; it is not a cross-platform constant.
 use ferrum_proto::NodeId;
 use ferrum_sim::SimController;
 

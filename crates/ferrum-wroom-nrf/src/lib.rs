@@ -50,6 +50,11 @@ impl DualNrfPinout {
 }
 
 /// nRF24L01+ Hardware Register Map (SPI Commands & Registers).
+///
+/// Phase-2 firmware driver surface — not used by the Phase-1 simulated agent. This register map,
+/// together with [`Nrf24Hal`] and [`configure_nrf_promiscuous_sniffer`], is the scaffolding the
+/// `esp-hal` SPI driver will fill in; the simulated [`WroomAgent`] drives the radios through the
+/// `ferrum-hal` traits instead.
 pub mod nrf_regs {
     pub const CMD_R_REGISTER: u8 = 0x00;
     pub const CMD_W_REGISTER: u8 = 0x20;
@@ -69,6 +74,8 @@ pub mod nrf_regs {
 }
 
 /// Hardware abstraction trait for an individual nRF24L01+ transceiver over SPI (`esp-hal` or mock).
+///
+/// Phase-2 firmware driver surface — not used by the Phase-1 simulated agent.
 pub trait Nrf24Hal {
     fn write_reg(&mut self, reg: u8, val: u8);
     fn write_reg_buf(&mut self, reg: u8, bytes: &[u8]);
@@ -79,6 +86,8 @@ pub trait Nrf24Hal {
 }
 
 /// Configures an nRF24L01+ into **Promiscuous Enhanced ShockBurst (ESB) / GFSK Sniffer Mode**.
+///
+/// Phase-2 firmware driver surface — not used by the Phase-1 simulated agent.
 ///
 /// Uses the classic illegal `SETUP_AW = 0x00` (2-byte address width) with `0xAA55` alternating
 /// preamble bytes and `EN_AA = 0x00`, `CRC = disabled` so the radio shifts raw demodulated GFSK
@@ -106,36 +115,6 @@ pub fn configure_nrf_promiscuous_sniffer<H: Nrf24Hal>(
     radio.write_reg(nrf_regs::REG_RF_CH, channel.min(125));
     radio.set_ce(true);
     radio.delay_us(130); // PLL settling time
-}
-
-/// Diagnosis of the 2.4 GHz Physical & Data-Link Layer from combining nRF24 `RPD` + ESP32 Wi-Fi/BLE.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum RfThreatVerdict {
-    Nominal,
-    /// High 802.11 Deauth/Disassoc frames with normal RPD carrier floor -> Protocol attack (e.g. Marauder).
-    Layer2DeauthAttack {
-        channel: u8,
-        fps: u16,
-    },
-    /// Pegged RPD carrier energy across channels with collapsing packet decode -> Physical RF Jammer!
-    Layer1PhysicalJammer {
-        jammed_channels: u8,
-        ble_adv_blinded: bool,
-    },
-    /// Activity detected in `2485..=2525 MHz` (Channels 85..125) above standard Wi-Fi/BLE!
-    GhostBandTransmitter {
-        peak_channel: u8,
-        hit_count: u8,
-    },
-    /// Vulnerable unencrypted ESB / Wireless HID / MouseJack frame captured by nRF#2!
-    EsbWirelessHidInject {
-        channel: u8,
-        address_prefix: [u8; 4],
-    },
-    /// High-rate BLE Continuity / FastPair spam (Flipper Zero / Wall of Flippers signature).
-    BleAdvSpamAttack {
-        adv_fps: u16,
-    },
 }
 
 /// State machine running on the **ESP32-WROOM + Dual nRF24L01+** node.
@@ -198,56 +177,6 @@ impl WroomDualNrfNode {
         if cmd.pinned_channels[0] != 0 {
             self.last_hotspot_nrf_ch = cmd.pinned_channels[0].min(125);
         }
-    }
-
-    /// Executes one Core-1 Dual-nRF24 sweep & triage cycle:
-    /// - In `SplitSpectrumWaterfall`: nRF#1 scans `0..=62` while nRF#2 scans `63..=125` in parallel.
-    /// - In `HunterKillerEsb`: nRF#1 spots the highest-energy non-Wi-Fi channel and locks nRF#2 onto it.
-    /// - In `Simultaneous3ChBle`: nRF#1 locks `2402 MHz`, nRF#2 locks `2426 MHz`, Internal BLE locks `2480 MHz`.
-    pub fn evaluate_rf_verdict(&self, rpd_jam_density: u8) -> RfThreatVerdict {
-        let ghost_hits = self.spectrum.ghost_band_active_count();
-        let ble_sat = self.spectrum.ble_adv_carrier_saturation();
-
-        // 1. Check for Layer-1 Physical RF Jamming (high carrier RPD across spectrum + low packet decode)
-        if rpd_jam_density > 45 || (ble_sat == 3 && self.ble_adv_fps < 5) {
-            return RfThreatVerdict::Layer1PhysicalJammer {
-                jammed_channels: rpd_jam_density,
-                ble_adv_blinded: ble_sat == 3,
-            };
-        }
-
-        // 2. Check for Covert Ghost-Band Transmitter (2485 - 2525 MHz, nRF Ch 85..125)
-        if ghost_hits > 0 {
-            return RfThreatVerdict::GhostBandTransmitter {
-                peak_channel: self.last_hotspot_nrf_ch.max(85),
-                hit_count: ghost_hits,
-            };
-        }
-
-        // 3. Check for Promiscuous ESB / MouseJack / Wireless HID Injection
-        if self.esb_frames_captured > 0 {
-            return RfThreatVerdict::EsbWirelessHidInject {
-                channel: self.last_hotspot_nrf_ch,
-                address_prefix: [0xA8, 0x41, 0x22, 0x09],
-            };
-        }
-
-        // 4. Check for Layer-2 Deauth Flood
-        if self.deauth_cnt > 10 {
-            return RfThreatVerdict::Layer2DeauthAttack {
-                channel: self.last_hotspot_nrf_ch,
-                fps: self.deauth_cnt,
-            };
-        }
-
-        // 5. Check for BLE Advertising Spam (SourApple / FastPair / SwiftPair flood)
-        if self.ble_adv_fps > 600 {
-            return RfThreatVerdict::BleAdvSpamAttack {
-                adv_fps: self.ble_adv_fps,
-            };
-        }
-
-        RfThreatVerdict::Nominal
     }
 
     /// Generates the 24-byte `NodeTelemetry` frame for ESP-NOW transmission to the Pi 5.

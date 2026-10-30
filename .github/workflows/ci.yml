@@ -28,3 +28,11 @@ jobs:
         run: |
           rustup target add riscv32imac-unknown-none-elf
           cargo build -p ferrum-laya --no-default-features --target riscv32imac-unknown-none-elf
+      - name: all no_std cores cross-build bare-metal (RISC-V)
+        run: |
+          rustup target add riscv32imac-unknown-none-elf
+          cargo build --target riscv32imac-unknown-none-elf \
+            -p ferrum-proto -p ferrum-hal -p ferrum-wroom-nrf -p ferrum-c5-scout \
+            -p ferrum-s3-sense -p ferrum-deceive -p ferrum-secure -p ferrum-forensics \
+            -p ferrum-triage
+          cargo build --target riscv32imac-unknown-none-elf -p ferrum-laya --no-default-features

@@ -69,6 +69,26 @@ mod tests {
     }
 
     #[test]
+    fn test_high_adoption_reports_adopted_policy_confidence() {
+        // On a High (non-critical) escalation, confidence must track the ADOPTED policy's share
+        // of the System-1 distribution, not the superseded incumbent's figure.
+        let mut e = LayaEngine::new();
+        let s1 = base();
+        let d = e.system2(s1, &[det(Severity::High, PolicyMode::SurgicalCapture)]);
+        let adopted_share = d
+            .distribution
+            .iter()
+            .find(|(p, _)| *p == PolicyMode::SurgicalCapture)
+            .map(|(_, share)| *share)
+            .expect("adopted policy is always present in the distribution");
+        assert_eq!(d.confidence_pct, adopted_share);
+        // And when the adopted policy differs from what System-1 selected, the stale number is gone.
+        if s1.selected_policy != PolicyMode::SurgicalCapture {
+            assert_ne!(d.confidence_pct, s1.confidence_pct);
+        }
+    }
+
+    #[test]
     fn test_low_detection_leaves_system1() {
         let mut e = LayaEngine::new();
         let s1 = base();
