@@ -82,7 +82,7 @@ The dashboard is a single page served by `ferrum-brain` itself and fed by a WebS
 
 The six adversary models are `jammer`, `evil-twin-deauth`, `mousejack-esb`, `ble-rotating-implant`, `subghz-replay` and `bt-skimmer`.
 
-> **Reading the jammer run:** a confirmed Layer-1 jammer trips IDS rule `FR-JAM-001` at `High`, so System-2 *adopts* its recommendation: the dashboard reads `FLOOD_JAM_SURVIVAL` for the whole jam (a survivable attack is answered by re-tasking the swarm, fail over to 5 GHz and dedup frames, not by locking down). `FORENSIC_LOCKDOWN` is reserved for a `Critical` detection such as a honeypot decoy trip, which freezes the PCAP ring, seals the evidence block and arms the camera / mic. In the flagship scenario you see both: the jam phase shows `FLOOD_JAM_SURVIVAL`, then the close-range intruder trips the decoy and the swarm locks down.
+> **Reading the jammer run:** a confirmed Layer-1 jammer trips IDS rule `FR-JAM-001` at `High`, which agrees with System-1's own pick (and would be adopted by System-2 if it did not): the dashboard reads `FLOOD_JAM_SURVIVAL` for the whole jam, with no escalation marker (a survivable attack is answered by re-tasking the swarm, fail over to 5 GHz and dedup frames, not by locking down). `FORENSIC_LOCKDOWN` is reserved for a `Critical` detection such as a honeypot decoy trip, which freezes the PCAP ring, seals the evidence block and arms the camera / mic. In the flagship scenario you see both: the jam phase shows `FLOOD_JAM_SURVIVAL`, then the close-range intruder trips the decoy and the swarm locks down.
 
 ---
 
