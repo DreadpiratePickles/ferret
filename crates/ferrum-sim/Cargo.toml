@@ -1,0 +1,16 @@
+[package]
+name = "ferrum-sim"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ferrum-proto = { path = "../ferrum-proto" }
+ferrum-hal = { path = "../ferrum-hal" }
+# Pinned exactly: the golden Pcg64 stream must not drift (Cargo.lock is gitignored).
+rand_pcg = "=0.10.2"
+rand_core = "=0.10.1"
+
+[dev-dependencies]
+ferrum-wroom-nrf = { path = "../ferrum-wroom-nrf" }
+ferrum-c5-scout = { path = "../ferrum-c5-scout" }
+ferrum-s3-sense = { path = "../ferrum-s3-sense" }

@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format check
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --workspace -- -D warnings
+      - name: Test
+        run: cargo test --workspace
+      - name: no_std core builds without IDS (host)
+        run: cargo build -p ferrum-laya --no-default-features
+      - name: no_std core builds bare-metal (RISC-V)
+        run: |
+          rustup target add riscv32imac-unknown-none-elf
+          cargo build -p ferrum-laya --no-default-features --target riscv32imac-unknown-none-elf
+      - name: all no_std cores cross-build bare-metal (RISC-V)
+        run: |
+          rustup target add riscv32imac-unknown-none-elf
+          cargo build --target riscv32imac-unknown-none-elf \
+            -p ferrum-proto -p ferrum-hal -p ferrum-wroom-nrf -p ferrum-c5-scout \
+            -p ferrum-s3-sense -p ferrum-deceive -p ferrum-secure -p ferrum-forensics \
+            -p ferrum-triage
+          cargo build --target riscv32imac-unknown-none-elf -p ferrum-laya --no-default-features

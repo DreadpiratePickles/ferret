@@ -112,6 +112,12 @@ pub struct StoreForwardQueue<T: Copy, const CAP: usize> {
     pub dropped: u32,
 }
 
+impl<T: Copy, const CAP: usize> Default for StoreForwardQueue<T, CAP> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: Copy, const CAP: usize> StoreForwardQueue<T, CAP> {
     pub const fn new() -> Self {
         Self {

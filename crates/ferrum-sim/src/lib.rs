@@ -1,0 +1,23 @@
+//! `ferrum-sim` — seeded RF-world simulator for the Ferret swarm (`std`).
+//!
+//! * [`phys`] — log-distance path-loss and RSSI trilateration.
+//! * [`world`] — [`RfWorld`]: emitters, a seeded `Pcg64`, simulated time, and the per-node
+//!   readouts (RPD / RSSI / sniffed frames) the node agents consume.
+//! * [`adversary`] / [`scenario`] / [`controller`] — scripted attackers, timelines that spawn and
+//!   clear them, and [`SimController`], which advances world + adversaries together.
+//! * [`phy_impl`] — [`SimScanner`], [`SimSniffer`], [`SimTransport`], [`SimClock`]: the
+//!   `ferrum-hal` traits implemented on top of a shared [`RfWorld`].
+
+pub mod adversary;
+pub mod controller;
+pub mod phy_impl;
+pub mod phys;
+pub mod scenario;
+pub mod world;
+
+pub use adversary::{Adversary, AdversaryId};
+pub use controller::{ScenarioDriver, SimController};
+pub use phy_impl::{SharedWorld, SimClock, SimScanner, SimSniffer, SimTransport};
+pub use phys::{rssi_from_distance, trilaterate};
+pub use scenario::{scenario_by_name, Scenario, ScenarioEvent, SCENARIO_NAMES};
+pub use world::{Emitter, EmitterId, EmitterKind, RfWorld, SimFrame};

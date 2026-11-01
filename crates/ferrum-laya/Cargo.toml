@@ -1,0 +1,13 @@
+[package]
+name = "ferrum-laya"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ferrum-proto = { path = "../ferrum-proto" }
+ferrum-ids = { path = "../ferrum-ids", optional = true }
+
+[features]
+# System-2 (IDS escalation) needs the `std` crate `ferrum-ids`; disable for bare-metal System-1.
+default = ["ids"]
+ids = ["dep:ferrum-ids"]

@@ -16,10 +16,10 @@ pub const ESP_NOW_MAX_PAYLOAD: usize = 250;
 pub enum NodeId {
     WroomDualNrf = 0x01,
     Esp32C5Scout = 0x02,
-    XiaoS3Sense  = 0x03,
+    XiaoS3Sense = 0x03,
     UConsoleAio2 = 0x04,
-    Pi5Brain     = 0xFE,
-    Broadcast    = 0xFF,
+    Pi5Brain = 0xFE,
+    Broadcast = 0xFF,
 }
 
 impl NodeId {
@@ -41,25 +41,25 @@ impl NodeId {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum PolicyMode {
     /// Low-power wide spectrum sweep; Bloom-filter deduplication; Camera/Mic off.
-    WideRecon          = 0x01,
+    WideRecon = 0x01,
     /// Cooperative band split: C5 locks 5GHz, S3 takes 2.4GHz, WROOM sweeps BT + Ghost Band.
-    AnomalyTriage      = 0x02,
+    AnomalyTriage = 0x02,
     /// Single-channel pin @ 240MHz; zero-drop PSRAM ring buffer; raw EAPOL/ESB frame streaming.
-    SurgicalCapture    = 0x03,
+    SurgicalCapture = 0x03,
     /// Layer-1 Jammer or Layer-2 Beacon Flood mitigation; hardware MAC filter; 5GHz backhaul failover.
-    FloodJamSurvival   = 0x04,
+    FloodJamSurvival = 0x04,
     /// Synchronizes WROOM, C5, and S3 Sense onto one target MAC/fingerprint for 3-point RSSI radar.
-    TriangulateLock    = 0x05,
+    TriangulateLock = 0x05,
     /// Shrinks S3 PCAP ring to 4MB, powers on OV2640 Camera + PDM Mic for physical intruder correlation.
-    SentinelCorrelate  = 0x06,
+    SentinelCorrelate = 0x06,
     /// Pillar 1 (DETECT): Active WIDS rule enforcement & BLE spam filtering across all nodes.
-    IdsEnforce         = 0x07,
+    IdsEnforce = 0x07,
     /// Pillar 2 (DECEIVE): Activates WROOM FakeSoftAp & BLE Canary GATT decoys while S3/C5 monitor trips.
-    HoneypotLure       = 0x08,
+    HoneypotLure = 0x08,
     /// Pillar 3/4 (DEFEND & PROVE): Freezes DMA PCAP rings, seals SHA-256 evidence chain, arms Cam/Mic.
-    ForensicLockdown   = 0x09,
+    ForensicLockdown = 0x09,
     /// Pillar 3/4 (SURVIVE): Out-of-band LoRa SX1262 12-byte FeatureVector store-and-forward mode.
-    MeshSurvive        = 0x0A,
+    MeshSurvive = 0x0A,
 }
 
 impl PolicyMode {
@@ -102,11 +102,11 @@ pub enum DualNrfPolicy {
     /// nRF#1 sweeps Ch 0..62 (2400-2462MHz), nRF#2 sweeps Ch 63..125 (2463-2525MHz incl. Ghost Band).
     SplitSpectrumWaterfall = 0x01,
     /// nRF#1 spots narrowband GFSK energy spikes; nRF#2 sniffs Promiscuous ESB (MouseJack / HID / Drone).
-    HunterKillerEsb        = 0x02,
+    HunterKillerEsb = 0x02,
     /// nRF#1 locks BLE Ch 37 (2402MHz), nRF#2 locks BLE Ch 38 (2426MHz), Internal ESP locks BLE Ch 39 (2480MHz).
-    Simultaneous3ChBle     = 0x03,
+    Simultaneous3ChBle = 0x03,
     /// Compares raw RPD carrier energy vs decoded packets to prove Layer-1 RF Jamming vs Layer-2 Deauth.
-    Layer1JamTriage        = 0x04,
+    Layer1JamTriage = 0x04,
 }
 
 impl DualNrfPolicy {
@@ -174,9 +174,15 @@ impl NrfSpectrumBitmap {
     /// (`2402 MHz` = Ch 2, `2426 MHz` = Ch 26, `2480 MHz` = Ch 80).
     pub fn ble_adv_carrier_saturation(&self) -> u8 {
         let mut c = 0;
-        if self.get_channel(2) { c += 1; }
-        if self.get_channel(26) { c += 1; }
-        if self.get_channel(80) { c += 1; }
+        if self.get_channel(2) {
+            c += 1;
+        }
+        if self.get_channel(26) {
+            c += 1;
+        }
+        if self.get_channel(80) {
+            c += 1;
+        }
         c
     }
 }
@@ -185,24 +191,24 @@ impl NrfSpectrumBitmap {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct NodeTelemetry {
-    pub node_id: u8,                // NodeId
-    pub active_policy: u8,          // PolicyMode
-    pub sub_policy: u8,             // DualNrfPolicy or sensor sub-mode
-    pub primary_channel: u8,        // Current Wi-Fi / nRF channel (1..165)
-    pub cpu_load_pct: u8,           // 0..=100%
-    pub free_sram_kb: u16,          // Internal SRAM remaining (critical on 384KB C5)
-    pub free_psram_kb: u16,         // Octal PSRAM remaining (8192KB on S3 Sense, 0 on C5/WROOM)
-    pub ringbuf_drops: u16,         // DMA / RingBuffer packet drops
-    pub wifi_mgmt_fps: u16,         // 802.11 Beacon/Probe/Auth frames per sec
-    pub deauth_disassoc_cnt: u16,   // Layer-2 Deauth / Disassoc attack frames
-    pub eapol_handshake_cnt: u8,    // WPA2/WPA3 EAPOL frames captured
-    pub ble_adv_fps: u16,           // BLE Advertisements per second
-    pub bt_classic_inq_cnt: u8,     // BT Classic (BR/EDR) devices found (WROOM only)
-    pub ghost_band_hits: u8,        // 2485-2525 MHz non-Wi-Fi hits (WROOM nRF24 only)
-    pub esb_hid_frames: u8,         // Promiscuous Enhanced ShockBurst / MouseJack frames
-    pub zigbee_pan_frames: u8,      // 802.15.4 frames (ESP32-C5 only)
-    pub peak_anomaly_rssi: i8,      // Strongest suspicious signal RSSI in dBm (e.g. -34)
-    pub crc8: u8,                   // Integrity checksum
+    pub node_id: u8,              // NodeId
+    pub active_policy: u8,        // PolicyMode
+    pub sub_policy: u8,           // DualNrfPolicy or sensor sub-mode
+    pub primary_channel: u8,      // Current Wi-Fi / nRF channel (1..165)
+    pub cpu_load_pct: u8,         // 0..=100%
+    pub free_sram_kb: u16,        // Internal SRAM remaining (critical on 384KB C5)
+    pub free_psram_kb: u16,       // Octal PSRAM remaining (8192KB on S3 Sense, 0 on C5/WROOM)
+    pub ringbuf_drops: u16,       // DMA / RingBuffer packet drops
+    pub wifi_mgmt_fps: u16,       // 802.11 Beacon/Probe/Auth frames per sec
+    pub deauth_disassoc_cnt: u16, // Layer-2 Deauth / Disassoc attack frames
+    pub eapol_handshake_cnt: u8,  // WPA2/WPA3 EAPOL frames captured
+    pub ble_adv_fps: u16,         // BLE Advertisements per second
+    pub bt_classic_inq_cnt: u8,   // BT Classic (BR/EDR) devices found (WROOM only)
+    pub ghost_band_hits: u8,      // 2485-2525 MHz non-Wi-Fi hits (WROOM nRF24 only)
+    pub esb_hid_frames: u8,       // Promiscuous Enhanced ShockBurst / MouseJack frames
+    pub zigbee_pan_frames: u8,    // 802.15.4 frames (ESP32-C5 only)
+    pub peak_anomaly_rssi: i8,    // Strongest suspicious signal RSSI in dBm (e.g. -34)
+    pub crc8: u8,                 // Integrity checksum
 }
 
 impl NodeTelemetry {
@@ -282,13 +288,13 @@ pub struct BleDeviceFingerprint {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct FerrumPolicyCmd {
-    pub target_node: u8,            // NodeId (or 0xFF Broadcast)
-    pub policy_mode: u8,            // PolicyMode
-    pub dual_nrf_mode: u8,          // DualNrfPolicy for WROOM's 2x nRF24 modules
-    pub pinned_channels: [u8; 4],   // Up to 4 Wi-Fi/nRF channels to lock onto
-    pub dwell_time_ms: u16,         // Channel hop dwell time in milliseconds
-    pub cpu_freq_mhz: u8,           // 80, 160, or 240 MHz
-    pub s3_psram_pcap_quota_kb: u16,// Dynamic allocation of S3's 8MB PSRAM to PCAP vs Cam/GATT
+    pub target_node: u8,             // NodeId (or 0xFF Broadcast)
+    pub policy_mode: u8,             // PolicyMode
+    pub dual_nrf_mode: u8,           // DualNrfPolicy for WROOM's 2x nRF24 modules
+    pub pinned_channels: [u8; 4],    // Up to 4 Wi-Fi/nRF channels to lock onto
+    pub dwell_time_ms: u16,          // Channel hop dwell time in milliseconds
+    pub cpu_freq_mhz: u8,            // 80, 160, or 240 MHz
+    pub s3_psram_pcap_quota_kb: u16, // Dynamic allocation of S3's 8MB PSRAM to PCAP vs Cam/GATT
     pub crc8: u8,
 }
 
