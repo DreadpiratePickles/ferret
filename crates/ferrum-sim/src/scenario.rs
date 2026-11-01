@@ -79,7 +79,7 @@ fn red_team_incursion() -> Scenario {
             ),
             (17_000, Clear(AdversaryId(1))),
             // id 2: Layer-1 jammer.
-            (17_000, Spawn(Adversary::jammer((1.5, 1.0), 62))),
+            (17_000, Spawn(Adversary::jammer((1.5, 1.0), 45))),
             (22_000, Clear(AdversaryId(2))),
             // ids 3-5: close-range intruder + sub-GHz replay + BLE rotation.
             (22_000, Spawn(Adversary::bt_skimmer((3.0, 4.6)))),

@@ -334,9 +334,9 @@ mod tests {
         send_text(&mut ws, r#"{"InjectAdversary":"jammer"}"#).await;
 
         // The jammer shows up as active, the IDS flags Layer-1 jamming recommending
-        // FLOOD_JAM_SURVIVAL, and the live decision moves off the baseline. (System-2 may then
-        // escalate past FLOOD_JAM_SURVIVAL, because the jammer's carrier also trips the decoy
-        // honeypot and lockdown outranks it, so the recommendation is asserted on the detection.)
+        // FLOOD_JAM_SURVIVAL, and the live decision moves off the baseline (FR-JAM-001 is High,
+        // so System-2 adopts FLOOD_JAM_SURVIVAL; the tuned jammer stays below the -42 dBm
+        // proximity-honeypot threshold and therefore does not force lockdown).
         let (mut saw_adversary, mut saw_jam, mut moved) = (false, false, false);
         for _ in 0..300 {
             let s = next_json(&mut ws).await;

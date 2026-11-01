@@ -109,24 +109,37 @@ fn random_mac(world: &mut RfWorld) -> [u8; 6] {
 }
 
 impl Adversary {
-    /// Wideband jammer near the WROOM, centred on nRF ch 62 (2462 MHz): >40 channels RPD-hot.
+    /// Wideband jammer near the WROOM (scenario: centred on nRF ch 45, 2445 MHz): >40 channels
+    /// RPD-hot. Keep `center_ch` at or below ~52 so the hot span (about +/-30 channels) stays
+    /// out of the 2485-2525 MHz ghost band (nRF ch 85+), otherwise the jam would also raise
+    /// `FR-GHOST-001` and a second High detection would outvote `FLOOD_JAM_SURVIVAL`.
+    ///
+    /// `tx_dbm = -42` is tuned so that at the scenario position `(1.5, 1.0)` the jammer lands at
+    /// roughly -48 dBm at the WROOM (about -56 dBm at the S3): comfortably above the RPD-hot
+    /// threshold (-64 dBm, so ~60 channels peg) yet below the -42 dBm close-range / proximity
+    /// honeypot threshold, so a jam alone is a High `FR-JAM-001` (System-2 adopts
+    /// `FLOOD_JAM_SURVIVAL`) and never trips the decoy into `FORENSIC_LOCKDOWN`.
     pub fn jammer(pos: (f32, f32), center_ch: u8) -> Self {
         Self::Jammer {
             pos,
-            tx_dbm: -30,
+            tx_dbm: -42,
             center_ch,
             emitter: None,
         }
     }
 
     /// Evil twin AP + deauth burst on 5 GHz channel `wifi_ch`.
+    ///
+    /// The burst runs at 120 deauth frames/s, i.e. ~12 per 100 ms tick at the C5: above the
+    /// System-1 `SurgicalCapture` activation (> 5) but far below the IDS deauth-flood rule
+    /// (> 50 per window), so it re-tasks the swarm without escalating further.
     pub fn evil_twin_deauth(pos: (f32, f32), wifi_ch: u8, burst_ms: u64) -> Self {
         Self::EvilTwinDeauth {
             pos,
             tx_dbm: -40,
             wifi_ch,
             beacon_fps: 10,
-            deauth_fps: 40,
+            deauth_fps: 120,
             burst_ms,
             start_ms: None,
             ap: None,

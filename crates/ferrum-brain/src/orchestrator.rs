@@ -151,7 +151,7 @@ fn tele_of(status: NodeStatus) -> Option<NodeTelemetry> {
 /// Map an [`Adversary::name`] label to a default-positioned adversary for `InjectAdversary`.
 fn adversary_by_name(name: &str) -> Option<Adversary> {
     Some(match name {
-        "jammer" => Adversary::jammer((1.5, 1.0), 62),
+        "jammer" => Adversary::jammer((1.5, 1.0), 45),
         "evil-twin-deauth" => Adversary::evil_twin_deauth((5.0, 1.5), 36, 4_000),
         "mousejack-esb" => Adversary::mousejack((1.0, 1.5), 96, 4, Some(98)),
         "ble-rotating-implant" => Adversary::ble_rotating_implant((2.4, 4.0), 3_000),
