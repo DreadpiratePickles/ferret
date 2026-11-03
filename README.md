@@ -117,12 +117,16 @@ top three signals are reported as the rationale. Hysteresis (a 20-point margin o
 recommended policy; a `Critical` one forces `FORENSIC_LOCKDOWN` regardless of what
 System-1 thought.
 
-> **Reading the jammer run:** `FLOOD_JAM_SURVIVAL` is System-1's *reactive prior* for
-> jam-like energy, the policy Laya leans toward while a jammer is only suspected. It is
-> not the end state. A sustained Layer-1 jammer trips IDS rule `FR-JAM-001` at `Critical`,
-> and System-2 escalates to `FORENSIC_LOCKDOWN`: freeze the PCAP ring, seal the evidence
-> block, and arm the S3 node's camera / mic (see the note under *Reference hardware*). So
-> a real jammer reads `FLOOD_JAM_SURVIVAL` → `FORENSIC_LOCKDOWN` on the dashboard.
+> **Reading the jammer run:** a confirmed Layer-1 jammer trips IDS rule `FR-JAM-001` at
+> `High`, which agrees with System-1's own pick (and would be adopted by System-2 if it did
+> not): the dashboard reads `FLOOD_JAM_SURVIVAL` for the whole jam, with no escalation
+> marker. A jammer is survivable — the swarm answers it by re-tasking, failing over to
+> 5 GHz and de-duplicating frames, not by locking down. `FORENSIC_LOCKDOWN` is reserved for
+> a `Critical` detection such as a honeypot decoy trip, which freezes the PCAP ring, seals
+> the evidence block and arms the S3 node's camera / mic (see the note under *Reference
+> hardware*). In the flagship scenario you see both: the jam phase shows
+> `FLOOD_JAM_SURVIVAL`, then the close-range intruder trips the decoy and the swarm locks
+> down.
 
 ## What you're looking at
 

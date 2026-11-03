@@ -101,7 +101,10 @@ impl IdsEngine {
         if rpd_jammed_channels > self.rpd_jam_channel_threshold {
             out.push(Detection {
                 rule_id: "FR-JAM-001",
-                severity: Severity::Critical,
+                // High, not Critical: a jammer is survivable by re-tasking the swarm
+                // (FLOOD_JAM_SURVIVAL), so System-2 adopts its recommendation instead of
+                // forcing FORENSIC_LOCKDOWN (reserved for Critical, e.g. a honeypot trip).
+                severity: Severity::High,
                 title: "LAYER-1 RF JAMMING",
                 mitre: "T1498",
                 explanation: format!(
@@ -310,11 +313,29 @@ mod tests {
     }
 
     #[test]
-    fn jammer_beats_deauth_in_escalation() {
+    fn jammer_alone_is_high_and_recommends_flood_jam_survival() {
         let eng = IdsEngine::default();
-        let mut c = quiet(2);
-        c.deauth_disassoc_cnt = 80;
-        let d = eng.evaluate(&quiet(1), &c, &quiet(3), 72, &[]);
+        let d = eng.evaluate(&quiet(1), &quiet(2), &quiet(3), 72, &[]);
+        let jam = d
+            .iter()
+            .find(|x| x.rule_id == "FR-JAM-001")
+            .expect("jam rule");
+        assert_eq!(jam.severity, Severity::High);
+        assert_eq!(eng.escalate(&d), Some(PolicyMode::FloodJamSurvival));
+    }
+
+    #[test]
+    fn jammer_plus_honeypot_trip_still_locks_down() {
+        let eng = IdsEngine::default();
+        let trip = TripwireEvent::new(
+            7,
+            TripwireKind::Association,
+            [0x64; 6],
+            -38,
+            1_700_000_000,
+            0x01,
+        );
+        let d = eng.evaluate(&quiet(1), &quiet(2), &quiet(3), 72, &[trip]);
         assert_eq!(eng.escalate(&d), Some(PolicyMode::ForensicLockdown));
     }
 }

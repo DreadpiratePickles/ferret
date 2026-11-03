@@ -56,6 +56,19 @@ fn test_red_team_incursion_hits_all_pillars() {
             );
         }
     }
+    // SHOWCASE: every flagship phase visibly re-tasks the swarm. Both the evil-twin flip
+    // (SURGICAL_CAPTURE) and the jam flip (FLOOD_JAM_SURVIVAL) must appear BEFORE the close-range
+    // honeypot trip locks the swarm down; a regression in either flip fails here.
+    let before_lockdown = &snaps[..first_lockdown];
+    for want in [PolicyMode::SurgicalCapture, PolicyMode::FloodJamSurvival] {
+        assert!(
+            before_lockdown
+                .iter()
+                .any(|s| s.decision.selected_policy == want.as_str()),
+            "SHOWCASE: {} never selected before the first FORENSIC_LOCKDOWN tick",
+            want.as_str()
+        );
+    }
     let last = snaps.last().unwrap();
     assert!(
         last.forensics.sealed_records > 0 && last.forensics.chain_valid,

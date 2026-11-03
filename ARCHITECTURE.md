@@ -83,7 +83,7 @@ The old control plane was a priority `if/else` ladder. It is replaced by a score
 | Adversary (`name()`) | What it does |
 | :--- | :--- |
 | `jammer` | Wideband (80 MHz) Layer-1 jammer; pegs RPD across more than 40 nRF channels |
-| `evil-twin-deauth` | 5 GHz evil-twin AP plus a deauth flood for the first few seconds |
+| `evil-twin-deauth` | 5 GHz evil-twin AP plus a deauth flood (about 12 frames per 100 ms tick at the C5) for the first few seconds; enough to flip System-1 to `SURGICAL_CAPTURE`, well under the IDS deauth-flood rule |
 | `mousejack-esb` | Hopping ESB keystroke injector, optionally with a ghost-band carrier implant |
 | `ble-rotating-implant` | BLE advertiser that rotates its private MAC; the emitter id is the identity that persists |
 | `subghz-replay` | 433 MHz replay bursts; no 2.4/5 GHz emitter, surfaced to the operator deck as a sub-GHz burst |
@@ -151,7 +151,7 @@ In order:
 
 The six rows above are the policies **System-1 scores**. Four more wire-protocol states exist (`PolicyMode` `0x07..=0x0A`) and are reached through System-2 escalation or an operator override rather than System-1 scoring: `IDS_ENFORCE` (`0x07`), `HONEYPOT_LURE` (`0x08`), `FORENSIC_LOCKDOWN` (`0x09`, seals the evidence chain and arms camera / mic) and `MESH_SURVIVE` (`0x0A`, LoRa `FeatureVector` store-and-forward).
 
-> **Jammer outcome, honestly:** `FLOOD_JAM_SURVIVAL` is the System-1 *reactive prior* for jam-like energy — the row Laya's scoring favours while a jammer is merely suspected. It is **not** the live outcome of a confirmed jammer. A sustained Layer-1 jammer trips IDS rule `FR-JAM-001` at `Critical`, and any `Critical` detection makes System-2 escalate past the reactive prior to `FORENSIC_LOCKDOWN` (`0x09`): freeze the PCAP ring, seal the evidence block, and arm the camera / mic. So the jammer path at runtime is `FLOOD_JAM_SURVIVAL` (prior) → `FORENSIC_LOCKDOWN` (confirmed), not `FLOOD_JAM_SURVIVAL` as a terminal state.
+> **Jammer outcome:** a confirmed Layer-1 jammer trips IDS rule `FR-JAM-001` at `High` severity with `recommended_policy = FLOOD_JAM_SURVIVAL`, which agrees with System-1's own pick, so `FLOOD_JAM_SURVIVAL` (the row above) is the live policy for as long as the jam lasts with no System-2 escalation marker (System-2 would adopt it anyway if System-1 disagreed). It does **not** force `FORENSIC_LOCKDOWN` (`0x09`): that is reached by a `Critical` detection, e.g. an `FR-HP-001` honeypot decoy trip, which freezes the PCAP ring, seals the evidence block and arms the camera / mic. (If a jam and a decoy trip coincide, the `Critical` wins and the swarm locks down.) The sim's scenario jammer is deliberately tuned to stay in the -62..-46 dBm window at the sensors: strong enough to peg more than 40 RPD channels, but below the -42 dBm close-range threshold so it does not also trip the proximity honeypot, and centred low enough (nRF ch 45) to stay out of the 2485-2525 MHz ghost band so it does not raise `FR-GHOST-001`.
 
 ---
 

@@ -30,10 +30,26 @@ fn jammer_makes_over_40_nrf_channels_rpd_hot() {
     w.step(100);
     let quiet = (0..=125u8).filter(|&c| w.rpd_at(WROOM, c)).count();
     assert_eq!(quiet, 0);
-    let mut j = Adversary::jammer((1.5, 1.0), 62);
+    let mut j = Adversary::jammer((1.5, 1.0), 45);
     run(&mut j, &mut w, 3, WROOM);
     let hot = (0..=125u8).filter(|&c| w.rpd_at(WROOM, c)).count();
     assert!(hot > 40, "only {hot} channels RPD-hot");
+
+    // Showcase tuning: the jam must stay below the -42 dBm close-range / proximity-honeypot
+    // threshold (so it re-tasks to FLOOD_JAM_SURVIVAL without forcing lockdown) and out of the
+    // 2485-2525 MHz ghost band (so it does not also raise FR-GHOST-001).
+    let peak = (0..=125u8).map(|c| w.rssi_at(WROOM, c)).max().unwrap();
+    assert!(
+        (-62..=-46).contains(&peak),
+        "jammer peak at WROOM {peak} dBm"
+    );
+    let s3_peak = [1u8, 6, 11]
+        .map(|c| w.rssi_at(S3, c))
+        .into_iter()
+        .max()
+        .unwrap();
+    assert!(s3_peak < -42, "jammer peak at S3 {s3_peak} dBm");
+    assert_eq!((85..=125u8).filter(|&c| w.rpd_at(WROOM, c)).count(), 0);
 }
 
 #[test]
@@ -160,7 +176,7 @@ fn controller_quiet_scenario_stays_quiet_and_unknown_falls_back() {
 #[test]
 fn controller_inject_and_clear() {
     let mut c = SimController::new(10, "quiet");
-    let id = c.inject(Adversary::jammer((1.5, 1.0), 62));
+    let id = c.inject(Adversary::jammer((1.5, 1.0), 45));
     c.advance(100);
     c.advance(100);
     assert_eq!(c.active().len(), 1);

@@ -43,7 +43,7 @@ fn run_hash(seed: u64, scenario: &str, ticks: u32) -> u64 {
 }
 
 /// Generated once from this implementation (`seed 42`, 300 ticks x 100 ms).
-const GOLDEN_RED_TEAM_42: u64 = 0xb28c_4810_73ea_7536;
+const GOLDEN_RED_TEAM_42: u64 = 0xb3d0_9f2f_3628_f96f;
 
 #[test]
 fn test_red_team_incursion_is_reproducible() {
